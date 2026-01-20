@@ -1,0 +1,26 @@
+{# Templates for SubAgentTool guidance prompts #}
+
+{% macro guidance() %}
+## Sub-Agent Delegation (delegate_subtask)
+
+The `delegate_subtask` tool spawns an independent sub-agent with full access to all available tools. The sub-agent handles the subtask autonomously and returns the result.
+
+### When to Use delegate_subtask
+✓ **Complex Subtasks**: Tasks requiring multiple tool calls and reasoning steps
+✓ **Independent Workstreams**: Subtasks that can run in parallel without dependencies
+✓ **Iterative Operations**: Processing multiple items where each needs its own reasoning
+✓ **Focused Execution**: When a subtask benefits from isolated context
+
+### When NOT to Use
+✗ Simple operations achievable with a single direct tool call
+✗ Tasks where you already have sufficient information
+✗ When the overhead of delegation exceeds the benefit
+
+### Example Usage
+**Objective**: "Research 3 companies and compare them"
+**Approach**:
+1. delegate_subtask("Research Company A and summarize key facts")
+2. delegate_subtask("Research Company B and summarize key facts")
+3. delegate_subtask("Research Company C and summarize key facts")
+4. Use the returned summaries to write the comparison directly
+{% endmacro %}

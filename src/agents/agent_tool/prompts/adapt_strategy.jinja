@@ -1,0 +1,67 @@
+{# Templates for ADaPT Strategy prompts #}
+
+{% macro direct_prompt(tool_names) %}
+Based on the conversation history, select the tool(s) to execute for the IMMEDIATE next step.
+
+Available tools: {{ tool_names | join(', ') }}
+
+## Execution Rules:
+- Focus on the most direct path to completing the objective
+- Call tools that will make concrete progress
+- If you have sufficient information to complete the task, call 'finish' with success=true
+- If a tool fails, try an alternative approach before giving up
+
+## Loop Detection:
+- Review previous tool calls and their results
+- Do NOT repeat the same tool call with identical inputs if it failed
+- If stuck after multiple attempts, call 'finish' with success=false explaining what was tried
+{% endmacro %}
+
+{% macro decomposition_prompt(failure_reason, tool_names) %}
+## Task Decomposition Required
+
+The direct approach has encountered difficulties: **{{ failure_reason }}**
+
+Your task now is to DECOMPOSE the objective into smaller, manageable subtasks that can be delegated.
+
+Available tools: {{ tool_names | join(', ') }}
+
+## Decomposition Strategy:
+
+1. **Analyze the Failure**: What specifically went wrong with the direct approach?
+2. **Identify Subtasks**: Break the objective into 2-4 independent subtasks that:
+   - Are simpler than the original objective
+   - Can be accomplished with the available tools
+   - Together will achieve the original goal
+3. **Delegate Each Subtask**: Use `delegate_subtask` for complex subtasks that need their own planning
+
+## Guidelines:
+- Each subtask should be self-contained with clear success criteria
+- Prefer parallel subtasks when they don't depend on each other
+- Include any context the subtask needs from the failed attempts
+- After subtasks complete, synthesize their results to finish the original objective
+
+## Response:
+Call the appropriate tools to execute your decomposition plan. Use `delegate_subtask` for each major subtask that requires independent reasoning and tool usage.
+{% endmacro %}
+
+{% macro synthesis_prompt(subtask_results) %}
+## Synthesize Subtask Results
+
+The following subtasks have been completed:
+
+{% for result in subtask_results %}
+**Subtask {{ loop.index }}**: {{ result.objective }}
+- Success: {{ result.success }}
+- Result: {{ result.result }}
+
+{% endfor %}
+
+## Your Task:
+Combine these results to complete the original objective. If all subtasks succeeded, synthesize their outputs into a coherent final result and call 'finish' with success=true.
+
+If any critical subtask failed, determine if:
+1. The failure can be worked around with available information
+2. A retry with different approach is needed
+3. The objective cannot be completed (call 'finish' with success=false)
+{% endmacro %}

@@ -1,0 +1,249 @@
+{
+  "alerts": {
+    "best-practice": "Meilleure pratique",
+    "beta": "B\u00eata",
+    "caution": "Attention",
+    "debug": "D\u00e9bogage",
+    "example": "Exemple",
+    "help": "Aide",
+    "idea": "Id\u00e9e",
+    "important": "Important",
+    "info": "Info",
+    "note": "Note",
+    "pending": "En attente",
+    "security": "S\u00e9curit\u00e9",
+    "success": "Succ\u00e8s",
+    "tip": "Astuce",
+    "warning": "Avertissement"
+  },
+  "apiKeys": {
+    "description": "Pour utiliser cette application, les cl\u00e9s API suivantes sont requises. Les cl\u00e9s sont stock\u00e9es dans le stockage local de votre appareil.",
+    "success": {
+      "saved": "Enregistr\u00e9 avec succ\u00e8s"
+    },
+    "title": "Cl\u00e9s API requises"
+  },
+  "auth": {
+    "login": {
+      "errors": {
+        "callback": "Essayez de vous connecter avec un autre compte",
+        "credentialsSignin": "La connexion a \u00e9chou\u00e9. V\u00e9rifiez que les informations que vous avez fournies sont correctes",
+        "default": "Impossible de se connecter",
+        "emailCreateAccount": "Essayez de vous connecter avec un autre compte",
+        "emailSignin": "L'e-mail n'a pas pu \u00eatre envoy\u00e9",
+        "emailVerify": "Veuillez v\u00e9rifier votre e-mail, un nouvel e-mail a \u00e9t\u00e9 envoy\u00e9",
+        "oauthAccountNotLinked": "Pour confirmer votre identit\u00e9, connectez-vous avec le m\u00eame compte que vous avez utilis\u00e9 \u00e0 l'origine",
+        "oauthCallback": "Essayez de vous connecter avec un autre compte",
+        "oauthCreateAccount": "Essayez de vous connecter avec un autre compte",
+        "oauthSignin": "Essayez de vous connecter avec un autre compte",
+        "redirectUriMismatch": "L'URI de redirection ne correspond pas \u00e0 la configuration de l'application oauth",
+        "sessionRequired": "Veuillez vous connecter pour acc\u00e9der \u00e0 cette page",
+        "signin": "Essayez de vous connecter avec un autre compte"
+      },
+      "form": {
+        "actions": {
+          "signin": "Se connecter"
+        },
+        "alternativeText": {
+          "or": "OU"
+        },
+        "email": {
+          "label": "Adresse e-mail",
+          "placeholder": "me@example.com",
+          "required": "l'e-mail est un champ obligatoire"
+        },
+        "password": {
+          "label": "Mot de passe",
+          "required": "le mot de passe est un champ obligatoire"
+        }
+      },
+      "title": "Connectez-vous pour acc\u00e9der \u00e0 l'application"
+    },
+    "provider": {
+      "continue": "Continuer avec {{provider}}"
+    }
+  },
+  "chat": {
+    "commands": {
+      "availableTools": "Outils disponibles",
+      "button": "Outils",
+      "changeTool": "Changer d'outil"
+    },
+    "favorites": {
+      "headline": "Messages favoris",
+      "use": "Utiliser un message favori"
+    },
+    "fileUpload": {
+      "actions": {
+        "cancelUpload": "Annuler le t\u00e9l\u00e9versement",
+        "removeAttachment": "Supprimer la pi\u00e8ce jointe"
+      },
+      "browse": "Parcourir les fichiers",
+      "dragDrop": "Glissez et d\u00e9posez des fichiers ici",
+      "errors": {
+        "cancelled": "T\u00e9l\u00e9versement annul\u00e9 de",
+        "failed": "\u00c9chec du t\u00e9l\u00e9versement"
+      },
+      "sizeLimit": "Limite :"
+    },
+    "history": {
+      "empty": "Tellement vide...",
+      "show": "Afficher l'historique",
+      "title": "Derni\u00e8res entr\u00e9es"
+    },
+    "input": {
+      "actions": {
+        "attachFiles": "Joindre des fichiers",
+        "send": "Envoyer le message",
+        "stop": "Arr\u00eater la t\u00e2che"
+      },
+      "placeholder": "Tapez votre message ici..."
+    },
+    "messages": {
+      "actions": {
+        "copy": {
+          "button": "Copier dans le presse-papiers",
+          "success": "Copi\u00e9 !"
+        }
+      },
+      "feedback": {
+        "dialog": {
+          "submit": "Envoyer le commentaire",
+          "title": "Ajouter un commentaire",
+          "yourFeedback": "Votre avis..."
+        },
+        "edit": "Modifier le commentaire",
+        "negative": "Pas utile",
+        "positive": "Utile",
+        "status": {
+          "updated": "Commentaire mis \u00e0 jour",
+          "updating": "Mise \u00e0 jour"
+        }
+      },
+      "status": {
+        "used": "Utilis\u00e9",
+        "using": "Utilise"
+      }
+    },
+    "settings": {
+      "customize": "Personnalisez vos param\u00e8tres de chat ici",
+      "title": "Panneau des param\u00e8tres"
+    },
+    "speech": {
+      "connecting": "Connexion en cours",
+      "start": "D\u00e9marrer l'enregistrement",
+      "stop": "Arr\u00eater l'enregistrement"
+    },
+    "watermark": "Les LLMs peuvent se tromper. V\u00e9rifiez les r\u00e9ponses."
+  },
+  "common": {
+    "actions": {
+      "cancel": "Annuler",
+      "confirm": "Confirmer",
+      "continue": "Continuer",
+      "goBack": "Retour",
+      "reset": "R\u00e9initialiser",
+      "submit": "Envoyer"
+    },
+    "status": {
+      "error": {
+        "default": "Une erreur est survenue",
+        "serverConnection": "Impossible de joindre le serveur"
+      },
+      "loading": "Chargement..."
+    }
+  },
+  "components": {
+    "MultiSelectInput": {
+      "placeholder": "S\u00e9lectionner..."
+    }
+  },
+  "navigation": {
+    "header": {
+      "chat": "Discussion",
+      "readme": "Lisez-moi",
+      "theme": {
+        "dark": "Th\u00e8me sombre",
+        "light": "Th\u00e8me clair",
+        "system": "Suivre le syst\u00e8me"
+      }
+    },
+    "newChat": {
+      "button": "Nouvelle discussion",
+      "dialog": {
+        "description": "Cela effacera votre historique de discussion actuel. \u00cates-vous s\u00fbr de vouloir continuer ?",
+        "title": "Cr\u00e9er une nouvelle discussion",
+        "tooltip": "Nouvelle discussion"
+      }
+    },
+    "user": {
+      "menu": {
+        "apiKeys": "Cl\u00e9s API",
+        "logout": "Se d\u00e9connecter",
+        "settings": "Param\u00e8tres",
+        "settingsKey": "S"
+      }
+    }
+  },
+  "threadHistory": {
+    "sidebar": {
+      "actions": {
+        "close": "Fermer la barre lat\u00e9rale",
+        "open": "Ouvrir la barre lat\u00e9rale"
+      },
+      "empty": "Aucun fil de discussion trouv\u00e9",
+      "filters": {
+        "placeholder": "Rechercher des conversations...",
+        "search": "Rechercher"
+      },
+      "timeframes": {
+        "previous30days": "Les 30 derniers jours",
+        "previous7days": "Les 7 derniers jours",
+        "today": "Aujourd'hui",
+        "yesterday": "Hier"
+      },
+      "title": "Discussions pass\u00e9es"
+    },
+    "thread": {
+      "actions": {
+        "delete": {
+          "description": "Cela supprimera le fil de discussion ainsi que ses messages et \u00e9l\u00e9ments. Cette action ne peut pas \u00eatre annul\u00e9e",
+          "inProgress": "Suppression de la discussion",
+          "success": "Discussion supprim\u00e9e",
+          "title": "Confirmer la suppression"
+        },
+        "rename": {
+          "description": "Entrez un nouveau nom pour ce fil de discussion",
+          "form": {
+            "name": {
+              "label": "Nom",
+              "placeholder": "Entrez le nouveau nom"
+            }
+          },
+          "inProgress": "Renommage du fil de discussion",
+          "success": "Fil de discussion renomm\u00e9 !",
+          "title": "Renommer le fil de discussion"
+        },
+        "share": {
+          "button": "Partager",
+          "error": {
+            "create": "\u00c9chec de la cr\u00e9ation du lien de partage",
+            "unshare": "\u00c9chec de la d\u00e9sactivation du partage du fil"
+          },
+          "status": {
+            "copied": "Lien copi\u00e9",
+            "created": "Lien de partage cr\u00e9\u00e9 !",
+            "unshared": "Partage d\u00e9sactiv\u00e9 pour ce fil"
+          },
+          "title": "Partager le lien de la discussion"
+        }
+      },
+      "menu": {
+        "delete": "Supprimer",
+        "rename": "Renommer",
+        "share": "Partager"
+      },
+      "untitled": "Conversation sans titre"
+    }
+  }
+}

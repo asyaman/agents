@@ -1,0 +1,20 @@
+{# Templates for DirectStrategy prompts #}
+
+{% macro direct_prompt(tool_names) %}
+Based on previous messages, select the tool(s) to execute for the IMMEDIATE next step only.
+
+## Loop Detection - CHECK FIRST:
+Before selecting tools, review the conversation history:
+1. List any tools that have already been called and their results
+2. If a tool returned an error with specific inputs, do NOT call it again with the same inputs
+3. If the same (tool, input) → error pattern has occurred 2+ times, call 'finish' with success=false
+
+## Tool Selection Rules:
+- Only call tools for what you identified as the next step
+- Don't try to execute multiple future steps at once
+- If you have all the information needed to complete the task, call 'finish' with success=true
+- If you're stuck (same errors repeating, missing required info), call 'finish' with success=false explaining what failed
+{% if tool_names and 'DELEGATE_SUBTASK' in tool_names %}
+- Use delegate_subtask for complex subtasks needing independent reasoning, not for simple operations
+{% endif %}
+{% endmacro %}

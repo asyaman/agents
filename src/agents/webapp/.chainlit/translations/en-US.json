@@ -1,0 +1,249 @@
+{
+  "alerts": {
+    "best-practice": "Best Practice",
+    "beta": "Beta",
+    "caution": "Caution",
+    "debug": "Debug",
+    "example": "Example",
+    "help": "Help",
+    "idea": "Idea",
+    "important": "Important",
+    "info": "Info",
+    "note": "Note",
+    "pending": "Pending",
+    "security": "Security",
+    "success": "Success",
+    "tip": "Tip",
+    "warning": "Warning"
+  },
+  "apiKeys": {
+    "description": "To use this app, the following API keys are required. The keys are stored on your device's local storage.",
+    "success": {
+      "saved": "Saved successfully"
+    },
+    "title": "Required API Keys"
+  },
+  "auth": {
+    "login": {
+      "errors": {
+        "callback": "Try signing in with a different account",
+        "credentialsSignin": "Sign in failed. Check the details you provided are correct",
+        "default": "Unable to sign in",
+        "emailCreateAccount": "Try signing in with a different account",
+        "emailSignin": "The e-mail could not be sent",
+        "emailVerify": "Please verify your email, a new email has been sent",
+        "oauthAccountNotLinked": "To confirm your identity, sign in with the same account you used originally",
+        "oauthCallback": "Try signing in with a different account",
+        "oauthCreateAccount": "Try signing in with a different account",
+        "oauthSignin": "Try signing in with a different account",
+        "redirectUriMismatch": "The redirect URI is not matching the oauth app configuration",
+        "sessionRequired": "Please sign in to access this page",
+        "signin": "Try signing in with a different account"
+      },
+      "form": {
+        "actions": {
+          "signin": "Sign In"
+        },
+        "alternativeText": {
+          "or": "OR"
+        },
+        "email": {
+          "label": "Email address",
+          "placeholder": "me@example.com",
+          "required": "email is a required field"
+        },
+        "password": {
+          "label": "Password",
+          "required": "password is a required field"
+        }
+      },
+      "title": "Login to access the app"
+    },
+    "provider": {
+      "continue": "Continue with {{provider}}"
+    }
+  },
+  "chat": {
+    "commands": {
+      "availableTools": "Available Tools",
+      "button": "Tools",
+      "changeTool": "Change Tool"
+    },
+    "favorites": {
+      "headline": "Favorite Messages",
+      "use": "Use a favorite message"
+    },
+    "fileUpload": {
+      "actions": {
+        "cancelUpload": "Cancel upload",
+        "removeAttachment": "Remove attachment"
+      },
+      "browse": "Browse Files",
+      "dragDrop": "Drag and drop files here",
+      "errors": {
+        "cancelled": "Cancelled upload of",
+        "failed": "Failed to upload"
+      },
+      "sizeLimit": "Limit:"
+    },
+    "history": {
+      "empty": "Such empty...",
+      "show": "Show history",
+      "title": "Last Inputs"
+    },
+    "input": {
+      "actions": {
+        "attachFiles": "Attach files",
+        "send": "Send message",
+        "stop": "Stop Task"
+      },
+      "placeholder": "Type your message here..."
+    },
+    "messages": {
+      "actions": {
+        "copy": {
+          "button": "Copy to clipboard",
+          "success": "Copied!"
+        }
+      },
+      "feedback": {
+        "dialog": {
+          "submit": "Submit feedback",
+          "title": "Add a comment",
+          "yourFeedback": "Your feedback..."
+        },
+        "edit": "Edit feedback",
+        "negative": "Not helpful",
+        "positive": "Helpful",
+        "status": {
+          "updated": "Feedback updated",
+          "updating": "Updating"
+        }
+      },
+      "status": {
+        "used": "Used",
+        "using": "Using"
+      }
+    },
+    "settings": {
+      "customize": "Customize your chat settings here",
+      "title": "Settings panel"
+    },
+    "speech": {
+      "connecting": "Connecting",
+      "start": "Start recording",
+      "stop": "Stop recording"
+    },
+    "watermark": "LLMs can make mistakes. Check important info."
+  },
+  "common": {
+    "actions": {
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "continue": "Continue",
+      "goBack": "Go Back",
+      "reset": "Reset",
+      "submit": "Submit"
+    },
+    "status": {
+      "error": {
+        "default": "An error occurred",
+        "serverConnection": "Could not reach the server"
+      },
+      "loading": "Loading..."
+    }
+  },
+  "components": {
+    "MultiSelectInput": {
+      "placeholder": "Select..."
+    }
+  },
+  "navigation": {
+    "header": {
+      "chat": "Chat",
+      "readme": "Readme",
+      "theme": {
+        "dark": "Dark Theme",
+        "light": "Light Theme",
+        "system": "Follow System"
+      }
+    },
+    "newChat": {
+      "button": "New Chat",
+      "dialog": {
+        "description": "This will clear your current chat history. Are you sure you want to continue?",
+        "title": "Create New Chat",
+        "tooltip": "New Chat"
+      }
+    },
+    "user": {
+      "menu": {
+        "apiKeys": "API Keys",
+        "logout": "Logout",
+        "settings": "Settings",
+        "settingsKey": "S"
+      }
+    }
+  },
+  "threadHistory": {
+    "sidebar": {
+      "actions": {
+        "close": "Close sidebar",
+        "open": "Open sidebar"
+      },
+      "empty": "No threads found",
+      "filters": {
+        "placeholder": "Search conversations...",
+        "search": "Search"
+      },
+      "timeframes": {
+        "previous30days": "Previous 30 days",
+        "previous7days": "Previous 7 days",
+        "today": "Today",
+        "yesterday": "Yesterday"
+      },
+      "title": "Past Chats"
+    },
+    "thread": {
+      "actions": {
+        "delete": {
+          "description": "This will delete the thread as well as its messages and elements. This action cannot be undone",
+          "inProgress": "Deleting chat",
+          "success": "Chat deleted",
+          "title": "Confirm deletion"
+        },
+        "rename": {
+          "description": "Enter a new name for this thread",
+          "form": {
+            "name": {
+              "label": "Name",
+              "placeholder": "Enter new name"
+            }
+          },
+          "inProgress": "Renaming thread",
+          "success": "Thread renamed!",
+          "title": "Rename Thread"
+        },
+        "share": {
+          "button": "Share",
+          "error": {
+            "create": "Failed to create share link",
+            "unshare": "Failed to unshare thread"
+          },
+          "status": {
+            "copied": "Link copied",
+            "created": "Share link created!",
+            "unshared": "Sharing disabled for this thread"
+          },
+          "title": "Share link to chat"
+        }
+      },
+      "menu": {
+        "delete": "Delete",
+        "rename": "Rename",
+        "share": "Share"
+      },
+      "untitled": "Untitled Conversation"
+    }
+  }
+}

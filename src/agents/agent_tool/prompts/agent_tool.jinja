@@ -1,0 +1,29 @@
+{# Templates for AgentTool system and task prompts #}
+
+{% macro system_prompt(tools) %}
+You are a helpful agent that accomplishes tasks by using available tools.
+
+## Available Tools
+{% for tool in tools %}
+- **{{ tool.name }}**: {{ tool.description }}
+{% endfor %}
+
+## Guidelines
+- Break complex tasks into smaller steps
+- Use tools to gather information and take actions
+- When you have completed the task, call the 'FINISH' tool with your result
+- If you cannot complete the task, call the 'FINISH' tool with success=false and explain why
+- Be efficient - don't make unnecessary tool calls
+{% endmacro %}
+
+{% macro task_prompt(objective, context) %}
+## Objective
+{{ objective }}
+
+{% if context %}
+## Additional Context
+{{ context }}
+{% endif %}
+
+Please accomplish this objective using the available tools.
+{% endmacro %}

@@ -1,0 +1,17 @@
+{# Template for ParseToolInput - parses natural language to tool input #}
+{% macro tool_input_wrapper(tool_name, tool_description, input_schema, task, context, examples) %}
+Tool {
+    Name: {{ tool_name }}
+    Description: {{ tool_description }}
+    Input Schema: {{ input_schema }}
+}
+Task: {{ task }}
+Context: {{ context }}
+Return a json in the following format to call the tool to solve the task or return a json with the error message if you cannot call the tool and solve the task:
+Example Responses: {
+{%- for example in examples %}
+    Response: {{ example }}
+{%- endfor %}
+}
+Response:
+{% endmacro %}

@@ -1,0 +1,250 @@
+# Pre-commit configuration for agents
+# Multi-language repository with Python, TypeScript, Go, Docker
+# Following 2025 best practices with modern tools
+
+repos:
+  # =============================================================================
+  # General File Quality
+  # =============================================================================
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # File formatting and cleanup
+      - id: trailing-whitespace
+        name: "🧹 Remove trailing whitespace"
+        exclude: \.md$
+      - id: mixed-line-ending
+        name: "🔄 Fix mixed line endings"
+        args: [--fix=lf]
+
+      # File validation
+      - id: check-yaml
+        name: "📋 Validate YAML files"
+        args: [--allow-multiple-documents]
+      - id: check-json
+        name: "📋 Validate JSON files"
+      - id: check-toml
+        name: "📋 Validate TOML files"
+      - id: pretty-format-json
+        name: "✨ Format JSON files"
+        args: [--autofix, --indent=2]
+        exclude: ^servers/typescript-server/tsconfig\.json$
+
+      # Git and merge conflict detection
+      - id: check-merge-conflict
+        name: "🔀 Check for merge conflicts"
+      - id: check-added-large-files
+        name: "📦 Check for large files"
+        args: [--maxkb=1000]
+
+      # Security and permissions
+      - id: detect-private-key
+        name: "🔐 Detect private keys"
+      - id: check-executables-have-shebangs
+        name: "#!/ Check executable shebangs"
+
+  # =============================================================================
+  # Python - Modern Ruff (replaces black, flake8, isort, pyupgrade, bandit)
+  # =============================================================================
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.12
+    hooks:
+      - id: ruff
+        name: "🐍 Python linting (Ruff)"
+        description: "Fast Python linter and code transformer"
+        args: [--fix, --exit-non-zero-on-fix, --show-fixes]
+        types_or: [python, pyi, jupyter]
+      - id: ruff-format
+        name: "🐍 Python formatting (Ruff)"
+        description: "Fast Python formatter"
+        types_or: [python, pyi, jupyter]
+
+  # =============================================================================
+  # TypeScript/JavaScript - Prettier & ESLint
+  # =============================================================================
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v4.0.0-alpha.8
+    hooks:
+      - id: prettier
+        name: "💅 Format TypeScript/JavaScript (Prettier)"
+        types_or: [ts, javascript]
+        additional_dependencies:
+          - prettier@3.6.2
+          - "@typescript-eslint/parser@8.11.0"
+
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.35.0
+    hooks:
+      - id: eslint
+        name: "🔍 TypeScript/JavaScript linting (ESLint)"
+        files: \.(ts|js)$
+        additional_dependencies:
+          - eslint@9.35.0
+          - "@typescript-eslint/eslint-plugin@8.11.0"
+          - "@typescript-eslint/parser@8.11.0"
+        args: [--fix, --max-warnings=0]
+
+  # =============================================================================
+  # Go - Native tools
+  # =============================================================================
+  - repo: https://github.com/TekWizely/pre-commit-golang
+    rev: v1.0.0-rc.1
+    hooks:
+      - id: go-fmt
+        name: "🐹 Format Go code (gofmt)"
+        description: "Format Go source code"
+      - id: go-vet
+        name: "🐹 Go vet analysis"
+        description: "Examine Go source code and report suspicious constructs"
+      - id: go-mod-tidy
+        name: "🐹 Go mod tidy"
+        description: "Ensure Go module dependencies are clean"
+  # GolangCI-Lint disabled temporarily due to darwin/arm64 env issue
+  # - repo: https://github.com/golangci/golangci-lint
+  #   rev: v1.61.0
+  #   hooks:
+  #     - id: golangci-lint
+  #       name: "🐹 Go linting (golangci-lint)"
+  #       description: "Fast Go linters runner"
+  #       args: [--fix]
+
+  # =============================================================================
+  # Docker - Dockerfile linting
+  # =============================================================================
+  - repo: https://github.com/hadolint/hadolint
+    rev: v2.12.1-beta
+    hooks:
+      - id: hadolint-docker
+        name: "🐳 Dockerfile linting (hadolint)"
+        description: "Lint Dockerfiles for best practices"
+        args: [--ignore, DL3008, --ignore, DL3009, --failure-threshold, error]
+
+  # =============================================================================
+  # Shell Scripts
+  # =============================================================================
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.10.0.1
+    hooks:
+      - id: shellcheck
+        name: "🐚 Shell script analysis (shellcheck)"
+        args: [--severity=warning]
+
+  # =============================================================================
+  # Markdown Documentation
+  # ============================================================================
+
+  # =============================================================================
+  # Commit Message Quality
+  # =============================================================================
+
+
+  # =============================================================================
+  # YAML/Config File Specific Linting
+  # =============================================================================
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.37.1
+    hooks:
+      - id: yamllint
+        name: "📋 Advanced YAML linting"
+        args: [-d, relaxed]
+        exclude: ^(\.github/|node_modules/)
+
+  # =============================================================================
+  # Performance and Security Analysis
+  # =============================================================================
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.8.6
+    hooks:
+      - id: bandit
+        name: "🔒 Python security analysis (bandit)"
+        args: [--recursive, --skip, B101, B601]
+
+  # =============================================================================
+  # Package Security (Node.js dependencies)
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: npm-audit
+        name: "📦 Node.js security audit"
+        entry: bash -c 'cd servers/typescript-server && npm audit --audit-level=high'
+        language: system
+        files: ^servers/typescript-server/package.*\.json$
+        pass_filenames: false
+
+  # =============================================================================
+  # OpenWebUI Agentic Validation (Pipelines & Functions)
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: validate-pipeline-manifests
+        name: "🔧 Validate pipeline manifests"
+        entry: python3 tools/scripts/validate-manifest.py pipeline
+        language: system
+        files: ^pipelines/.*/manifest\.yaml$
+        pass_filenames: true
+
+      - id: validate-pipe-functions
+        name: "🔧 Validate pipe function manifests"
+        entry: python3 tools/scripts/validate-manifest.py pipe
+        language: system
+        files: ^functions/pipe/.*/manifest\.yaml$
+        pass_filenames: true
+
+      - id: validate-filter-functions
+        name: "🔧 Validate filter function manifests"
+        entry: python3 tools/scripts/validate-manifest.py filter
+        language: system
+        files: ^functions/filter/.*/manifest\.yaml$
+        pass_filenames: true
+
+      - id: validate-action-functions
+        name: "🔧 Validate action function manifests"
+        entry: python3 tools/scripts/validate-manifest.py action
+        language: system
+        files: ^functions/action/.*/manifest\.yaml$
+        pass_filenames: true
+
+      - id: validate-agentic-python
+        name: "🐍 Validate agentic Python syntax"
+        entry: python3 -m py_compile
+        language: system
+        files: ^(pipelines|functions)/.*\.py$
+        pass_filenames: true
+
+  # =============================================================================
+  # Component Version Management
+  # =============================================================================
+  - repo: local
+    hooks:
+      - id: validate-component-yaml
+        name: "📋 Validate component.yaml schema"
+        entry: python3 tools/scripts/validate-component-yaml.py
+        language: system
+        files: component\.yaml$
+        pass_filenames: true
+        # Note: This only validates schema (semver format, required fields)
+        # Version bump validation happens in PR workflow, not on every commit
+
+# =============================================================================
+# Global Configuration
+# =============================================================================
+default_language_version:
+  python: python3.13
+  node: "22.18.0"
+  golang: "1.25"
+
+# Exclude patterns for files that shouldn't be checked
+# Global excludes removed - patterns didn't match any files
+
+# CI/CD Integration settings
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: "main"
+  autoupdate_commit_msg: "[pre-commit.ci] pre-commit autoupdate"
+  autoupdate_schedule: weekly
+  skip: [commitizen, npm-audit] # Skip hooks that require interactive input or network access
+  submodules: false

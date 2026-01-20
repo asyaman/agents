@@ -1,0 +1,249 @@
+{
+  "alerts": {
+    "best-practice": "Bew\u00e4hrte Praxis",
+    "beta": "Beta",
+    "caution": "Vorsicht",
+    "debug": "Debug",
+    "example": "Beispiel",
+    "help": "Hilfe",
+    "idea": "Idee",
+    "important": "Wichtig",
+    "info": "Info",
+    "note": "Hinweis",
+    "pending": "Ausstehend",
+    "security": "Sicherheit",
+    "success": "Erfolg",
+    "tip": "Tipp",
+    "warning": "Warnung"
+  },
+  "apiKeys": {
+    "description": "Um diese App zu nutzen, werden die folgenden API Schl\u00fcssel ben\u00f6tigt. Die Schl\u00fcssel werden im lokalen Speicher Ihres Ger\u00e4ts gespeichert.",
+    "success": {
+      "saved": "Erfolgreich gespeichert"
+    },
+    "title": "Ben\u00f6tigte API Schl\u00fcssel"
+  },
+  "auth": {
+    "login": {
+      "errors": {
+        "callback": "Versuche dich mit einem anderen Konto anzumelden",
+        "credentialsSignin": "Anmeldung fehlgeschlagen. \u00dcberpr\u00fcfe, ob die angegebenen Benutzerdaten korrekt sind",
+        "default": "Anmeldung fehlgeschlagen",
+        "emailCreateAccount": "Versuche dich mit einem anderen Konto anzumelden",
+        "emailSignin": "Die E-Mail konnte nicht gesendet werden",
+        "emailVerify": "Es wurde eine neue E-Mail versandt. Bitte \u00fcberpr\u00fcfe dein E-Mail Postfach",
+        "oauthAccountNotLinked": "Um die Identit\u00e4t zu best\u00e4tigen, melde dich mit demselben Konto an, das du urspr\u00fcnglich verwendet hast",
+        "oauthCallback": "Versuche dich mit einem anderen Konto anzumelden",
+        "oauthCreateAccount": "Versuche dich mit einem anderen Konto anzumelden",
+        "oauthSignin": "Versuche dich mit einem anderen Konto anzumelden",
+        "redirectUriMismatch": "Der Redirect-URI stimmt nicht mit der Konfiguration der Oauth-Anwendung \u00fcberein",
+        "sessionRequired": "Bitte melde dich an, um auf diese Seite zuzugreifen",
+        "signin": "Versuche dich mit einem anderen Konto anzumelden"
+      },
+      "form": {
+        "actions": {
+          "signin": "Anmelden"
+        },
+        "alternativeText": {
+          "or": "ODER"
+        },
+        "email": {
+          "label": "E-Mail Adresse",
+          "placeholder": "me@example.com",
+          "required": "E-Mail Adresse ist ein Pflichtfeld"
+        },
+        "password": {
+          "label": "Passwort",
+          "required": "Passwort ist ein Pflichtfeld"
+        }
+      },
+      "title": "Melde dich an, um auf die App zuzugreifen"
+    },
+    "provider": {
+      "continue": "Fortfahren mit {{provider}}"
+    }
+  },
+  "chat": {
+    "commands": {
+      "availableTools": "Verf\u00fcgbare Tools",
+      "button": "Tools",
+      "changeTool": "Tool wechseln"
+    },
+    "favorites": {
+      "headline": "Favorisierte Nachrichten",
+      "use": "Eine favorisierte Nachricht verwenden"
+    },
+    "fileUpload": {
+      "actions": {
+        "cancelUpload": "Upload abbrechen",
+        "removeAttachment": "Anhang entfernen"
+      },
+      "browse": "Dateien durchsuchen",
+      "dragDrop": "Ziehe deine Dateien hierher",
+      "errors": {
+        "cancelled": "Abbruch des hochladens von",
+        "failed": "Hochladen fehlgeschlagen"
+      },
+      "sizeLimit": "Limit:"
+    },
+    "history": {
+      "empty": "Leer...",
+      "show": "Historie anzeigen",
+      "title": "Vergangene Eingaben"
+    },
+    "input": {
+      "actions": {
+        "attachFiles": "Dateien anh\u00e4ngen",
+        "send": "Nachricht senden",
+        "stop": "Aufgabe stoppen"
+      },
+      "placeholder": "Nachricht eingeben..."
+    },
+    "messages": {
+      "actions": {
+        "copy": {
+          "button": "In Zwischenablage kopieren",
+          "success": "Kopiert!"
+        }
+      },
+      "feedback": {
+        "dialog": {
+          "submit": "Feedback absenden",
+          "title": "F\u00fcge einen Kommentar hinzu",
+          "yourFeedback": "Dein Feedback..."
+        },
+        "edit": "Feedback editieren",
+        "negative": "Nicht hilfreich",
+        "positive": "Hilfreich",
+        "status": {
+          "updated": "Feedback aktualisiert",
+          "updating": "Aktualisiert"
+        }
+      },
+      "status": {
+        "used": "Verwendete",
+        "using": "Verwendet"
+      }
+    },
+    "settings": {
+      "customize": "Passe die Chat Einstellungen hier an",
+      "title": "Einstellungen"
+    },
+    "speech": {
+      "connecting": "Verbinde",
+      "start": "Aufnahme starten",
+      "stop": "Aufnahme stoppen"
+    },
+    "watermark": "LLMs k\u00f6nnen Fehler machen. \u00dcberpr\u00fcfe bitte stets die Inhalte."
+  },
+  "common": {
+    "actions": {
+      "cancel": "Abbrechen",
+      "confirm": "Best\u00e4tigen",
+      "continue": "Fortfahren",
+      "goBack": "Zur\u00fcck",
+      "reset": "Zur\u00fccksetzen",
+      "submit": "Absenden"
+    },
+    "status": {
+      "error": {
+        "default": "Ein Fehler ist aufgetreten",
+        "serverConnection": "Server konnte nicht erreicht werden"
+      },
+      "loading": "L\u00e4dt..."
+    }
+  },
+  "components": {
+    "MultiSelectInput": {
+      "placeholder": "W\u00e4hle aus..."
+    }
+  },
+  "navigation": {
+    "header": {
+      "chat": "Chat",
+      "readme": "Anleitung",
+      "theme": {
+        "dark": "Dunkles Design",
+        "light": "Helles Design",
+        "system": "System Design"
+      }
+    },
+    "newChat": {
+      "button": "Neuer Chat",
+      "dialog": {
+        "description": "Es werden die aktuellen Nachrichten gel\u00f6scht und ein neuer Chat ge\u00f6ffnet.",
+        "title": "M\u00f6chtest du einen neuen Chat erstellen?",
+        "tooltip": "Neuer Chat"
+      }
+    },
+    "user": {
+      "menu": {
+        "apiKeys": "API Schl\u00fcssel",
+        "logout": "Abmelden",
+        "settings": "Einstellungen",
+        "settingsKey": "S"
+      }
+    }
+  },
+  "threadHistory": {
+    "sidebar": {
+      "actions": {
+        "close": "Seitenleiste schlie\u00dfen",
+        "open": "Seitenleiste \u00f6ffnen"
+      },
+      "empty": "Kein Chat gefunden",
+      "filters": {
+        "placeholder": "Suche konversationen...",
+        "search": "Suche"
+      },
+      "timeframes": {
+        "previous30days": "Vor 30 Tagen",
+        "previous7days": "Vor 7 Tagen",
+        "today": "Heute",
+        "yesterday": "Gestern"
+      },
+      "title": "Vergangene Chats"
+    },
+    "thread": {
+      "actions": {
+        "delete": {
+          "description": "Dies wird den Thread sowie seine Nachrichten und Elemente l\u00f6schen. Dies kann nicht r\u00fcckg\u00e4ngig gemacht werden",
+          "inProgress": "Chat wird gel\u00f6scht",
+          "success": "Chat gel\u00f6scht",
+          "title": "L\u00f6schen best\u00e4tigen"
+        },
+        "rename": {
+          "description": "Gebe einen neuen Namen f\u00fcr den Thread ein",
+          "form": {
+            "name": {
+              "label": "Name",
+              "placeholder": "Neuen Namen eingeben"
+            }
+          },
+          "inProgress": "Thread wird umbenannt",
+          "success": "Thread umbenannt!",
+          "title": "Thread umbenennen"
+        },
+        "share": {
+          "button": "Teilen",
+          "error": {
+            "create": "Fehler beim Erstellen des Freigabelinks",
+            "unshare": "Freigabe des Threads konnte nicht aufgehoben werden"
+          },
+          "status": {
+            "copied": "Link kopiert",
+            "created": "Freigabelink erstellt!",
+            "unshared": "Teilen ist f\u00fcr diesen Thread deaktiviert"
+          },
+          "title": "Thread l\u00f6schen best\u00e4tigen"
+        }
+      },
+      "menu": {
+        "delete": "L\u00f6schen",
+        "rename": "Umbenennen",
+        "share": "Teilen"
+      },
+      "untitled": "Unbenannter Thread"
+    }
+  }
+}

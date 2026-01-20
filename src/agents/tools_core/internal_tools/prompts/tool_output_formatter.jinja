@@ -1,0 +1,41 @@
+{# Template for FormatToolOutput - formats tool output as natural language #}
+{% macro tool_output_wrapper(task, tool_name, tool_description, output_schema, tool_output, response_schema, error_schema, examples) %}
+Objective: {{ task }}
+Executed Tool {
+    Name: {{ tool_name }}
+    Description: {{ tool_description }}
+    Output Schema: {{ output_schema }}
+    Output: {{ tool_output }}
+}
+Answer the objective using the result of the executed tool, providing relevant context from the output in your answer. Return the Response Found if the result contains all information to finish the task without requiring any additional steps. In any other case, e.g information is incomplete return the Response Not Found. Format your response according to the following json schemas:
+Response Found Schema: {{ response_schema }}
+Response Not Found Schema: {{ error_schema }}
+Example Responses: {
+{%- for example in examples %}
+    Response: {{ example }}
+{%- endfor %}
+}
+Response:
+{% endmacro %}
+
+{# Template for SimplifyToolOutput chunk simplification #}
+{% macro simplify_chunk(task, tool_name, chunk, response_schema, error_schema) %}
+Objective: {{ task }}
+Tool: {{ tool_name }}
+
+You are simplifying a chunk of tool output. Extract and summarize the key information relevant to the objective.
+
+Chunk Content:
+{{ chunk }}
+
+Instructions:
+- Extract information relevant to the objective
+- Preserve important details, numbers, and facts
+- Remove redundant or irrelevant information
+- Keep the summary concise but complete
+
+Response Found Schema: {{ response_schema }}
+Response Not Found Schema: {{ error_schema }}
+
+Response:
+{% endmacro %}

@@ -1,0 +1,27 @@
+{# Template for ToolSelector - filters relevant tools based on user objective #}
+{% macro tool_selector(objective, tools, output_schema, include_input_schema=true) %}
+You are a tool selection assistant. Your task is to identify which tools from the available list are relevant for accomplishing the given objective.
+
+Guidelines:
+- Select ONLY tools that are necessary for the objective
+- It is acceptable to select NO tools if none are relevant
+- Consider each tool's description{% if include_input_schema %} and input schema{% endif %} to understand its capabilities
+- Provide clear reasoning for your selections
+- Objectives may contain ambiguous or noisy information - focus on the core intent
+
+Available Tools:
+{% for tool in tools %}
+- Name: {{ tool.name }}
+  Description: {{ tool.description }}
+{%- if include_input_schema and tool.input_schema %}
+  Input Schema: {{ tool.input_schema }}
+{%- endif %}
+{% endfor %}
+
+Objective: {{ objective }}
+
+Respond with a JSON object following this schema:
+{{ output_schema }}
+
+Your response:
+{% endmacro %}

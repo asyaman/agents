@@ -1,0 +1,83 @@
+{# Templates for Reflexion Strategy prompts #}
+
+{% macro action_prompt(tool_names) %}
+Based on the conversation history and any lessons learned, select the tool(s) to execute.
+
+Available tools: {{ tool_names | join(', ') }}
+
+## Execution Guidelines:
+- Apply insights from previous attempts to avoid repeating mistakes
+- If a particular approach failed before, try an alternative
+- Focus on making concrete progress toward the objective
+- If you have sufficient information, call 'finish' with success=true
+
+## Important:
+- Review any "Lessons from Previous Attempts" provided above
+- Do NOT repeat actions that have already been identified as problematic
+- If you see a pattern that previously led to failure, choose a different path
+{% endmacro %}
+
+{% macro reflection_prompt(failure_context) %}
+## Reflection Required
+
+An error or failure occurred during execution:
+
+**Failure Context**: {{ failure_context }}
+
+## Your Task:
+Analyze what went wrong and extract a lesson that will help avoid this failure in future attempts.
+
+Consider:
+1. **Root Cause**: What was the underlying reason for the failure?
+2. **Trigger**: What specific action or input caused the problem?
+3. **Prevention**: How can this be avoided in future attempts?
+4. **Alternative**: What different approach should be tried instead?
+
+## Response Format:
+Provide a concise insight (1-3 sentences) that captures:
+- What went wrong
+- Why it went wrong
+- What to do differently
+
+Example insights:
+- "The API requires authentication headers; include auth token in all requests."
+- "File path was relative but needs to be absolute; always use full paths."
+- "Rate limit exceeded after rapid calls; add delay between API requests."
+
+Your insight:
+{% endmacro %}
+
+{% macro retry_prompt(insights, tool_names) %}
+## Retry with Learned Insights
+
+Previous attempts encountered issues. Apply these lessons:
+
+{% for insight in insights %}
+- **Attempt {{ insight.iteration }}**: {{ insight.insight }}
+{% endfor %}
+
+Available tools: {{ tool_names | join(', ') }}
+
+## Guidelines:
+- Use a DIFFERENT approach than what failed before
+- Apply the insights above to avoid known pitfalls
+- If all reasonable approaches have been tried, call 'finish' with success=false
+- Include specific details about what you're doing differently this time
+{% endmacro %}
+
+{% macro summary_prompt(insights) %}
+## Reflection Summary
+
+Over the course of this task, the following insights were gathered:
+
+{% for insight in insights %}
+### Attempt {{ insight.iteration }}
+- **Failure**: {{ insight.failure_description }}
+- **Lesson**: {{ insight.insight }}
+{% if insight.tool_involved %}- **Tool**: {{ insight.tool_involved }}{% endif %}
+
+{% endfor %}
+
+## Patterns Identified:
+Based on these reflections, identify any recurring patterns or general principles that could apply to similar future tasks.
+{% endmacro %}

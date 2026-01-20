@@ -1,0 +1,90 @@
+[project]
+# Whether to enable telemetry (default: true). No personal data is collected.
+enable_telemetry = false
+
+# List of environment variables to be provided by each user to use the app.
+user_env = []
+
+# Duration (in seconds) during which the session is saved when the connection is lost
+session_timeout = 3600
+
+# Enable third parties caching (e.g LangChain cache)
+cache = false
+
+# Authorized origins
+allow_origins = ["*"]
+
+[features]
+# Process and display HTML in messages. This can be a security risk (see https://stackoverflow.com/questions/19603097/why-is-it-dangerous-to-render-user-generated-html-or-javascript)
+unsafe_allow_html = true
+
+# Process and display mathematical expressions. This can clash with "$" characters in messages.
+latex = false
+
+# Automatically tag threads with the current chat profile (if a chat profile is used)
+auto_tag_thread = true
+
+# Allow users to edit their own messages
+edit_message = true
+
+# Collapse long content by default
+default_collapse_content = true
+
+# Authorize users to spontaneously upload files with messages
+[features.spontaneous_file_upload]
+enabled = true
+accept = ["*/*"]
+max_files = 10
+max_size_mb = 50
+
+[features.audio]
+# Sample rate of the audio
+sample_rate = 24000
+
+[features.chat_settings]
+# Show the settings button in the UI header
+enabled = true
+
+[UI]
+# Name of the assistant.
+name = "Agent Assistant"
+
+# Default theme (light or dark)
+default_theme = "dark"
+
+# Description of the assistant. This is used for HTML tags.
+description = "AI-powered agent assistant"
+
+# Chain of Thought (CoT) display mode. Can be "hidden", "tool_call" or "full".
+cot = "full"
+
+# Large size content (file, audio) will be displayed as inline
+# rather than in an expandable tab if true
+show_readme_as_default = false
+
+# Specify a CSS file that can be used to customize the user interface.
+# The CSS file can be served from the public directory or via an external link.
+# custom_css = "/public/custom.css"
+
+# Specify a Javascript file that can be used to customize the user interface.
+# The Javascript file can be served from the public directory.
+# custom_js = "/public/custom.js"
+
+# Specify a custom meta image url.
+# custom_meta_image_url = "/public/banner.png"
+
+[UI.theme]
+# Primary color used throughout the UI
+# primary_color = "#3B82F6"
+
+# Background color
+# background_color = "#1E1E1E"
+
+# Paper (card) background color
+# paper_color = "#262626"
+
+# Font family
+# font_family = "Inter, sans-serif"
+
+[meta]
+generated_by = "2.1.2"

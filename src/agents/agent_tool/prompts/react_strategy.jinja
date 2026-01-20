@@ -1,0 +1,87 @@
+{# Templates for ReactStrategy prompts #}
+
+{% macro reasoning_prompt(tool_names) %}
+Given an objective, create a plan of tasks using provided tools to solve it with maximum parallelizability.
+
+**Current State**: What information do you have from previous steps? What has been accomplished?
+**Remaining Work**: What still needs to be done to complete the objective?
+
+## Planning Rules:
+- Each task MUST use one of the available tools: {{ tool_names | join(', ') }}
+- Group tasks that can run in PARALLEL (no dependencies between them)
+- Tasks that depend on previous results must be in SEQUENTIAL groups
+- Do not repeat tasks that have already succeeded
+
+## CRITICAL: Loop Detection & Failure Handling
+Before planning, review the conversation history and identify:
+1. **Failed attempts**: List each (tool, input, error) from previous iterations
+2. **Repeated patterns**: If a tool was called with the SAME inputs and returned the SAME error, do NOT call it again with those inputs
+
+**When to STOP and call FINISH with success=false:**
+- A tool has failed 2+ times with identical or equivalent inputs
+- Required information (email, zip, user_id) is missing AND you've already asked or cannot obtain it
+- All reasonable tool combinations have been exhausted
+
+**When to try a DIFFERENT approach:**
+- A tool failed → try an alternative tool that achieves the same goal
+- Missing input → explicitly note what's needed and either request it or finish with failure
+- Never call the same tool with empty/placeholder inputs hoping for different results
+{% if 'DELEGATE_SUBTASK' in tool_names %}
+
+## Delegation Strategy (delegate_subtask)
+Use delegate_subtask for:
+- Complex subtasks requiring multiple tool calls and reasoning
+- Independent workstreams that can run in parallel
+- Iterative operations on multiple items (delegate each item)
+
+Do NOT delegate:
+- Simple single-tool operations you can do directly
+- Tasks where you already have the answer
+{% endif %}
+
+## Response Format:
+Use this EXACT format for your plan:
+
+```plan
+[PARALLEL]
+- TOOL_NAME: task description (input: what data to use)
+- TOOL_NAME: task description (input: what data to use)
+
+[SEQUENTIAL]
+- TOOL_NAME: task description (depends on: previous step)
+
+[PARALLEL]
+- TOOL_NAME: task description (input: results from above)
+```
+
+## Response Guidelines:
+- If objective NOT satisfied AND you have a new approach: Output a plan using the format above
+- If objective IS satisfied: Output:
+  ```plan
+  - FINISH: success=true: <result summary>
+  ```
+- If objective CANNOT be completed (stuck in loop, missing info, all approaches failed): Output:
+  ```plan
+  - FINISH: success=false: <reason including what was tried and why it failed>
+  ```
+
+**IMPORTANT**: Before outputting any plan, ask yourself:
+1. "Have I tried this exact tool+input combination before?"
+2. "If yes, did it fail? If it failed, am I doing something DIFFERENT this time?"
+3. If the answer to #1 is yes and #2 is no → call FINISH with success=false instead
+{% endmacro %}
+
+{% macro action_prompt() %}
+Execute EXACTLY what your plan specifies. Look at the ```plan``` block in your reasoning.
+
+**CRITICAL RULES:**
+1. If your plan says `FINISH: success=false: <reason>` → call the `finish` tool with success=false and result=<reason>
+2. If your plan says `FINISH: success=true: <result>` → call the `finish` tool with success=true and result=<result>
+3. If your plan has a [PARALLEL] group → call ALL tools in that group simultaneously
+4. If your plan has a [SEQUENTIAL] group → call only the FIRST tool in that sequence
+
+**DO NOT** call tools that are merely *mentioned* in your explanation or history.
+**ONLY** call the tool(s) specified in your ```plan``` block.
+
+Example: If your reasoning mentions "I tried `SOME_TOOL` and it failed" but your plan says "FINISH: success=false", you must call `finish`, NOT `SOME_TOOL`.
+{% endmacro %}

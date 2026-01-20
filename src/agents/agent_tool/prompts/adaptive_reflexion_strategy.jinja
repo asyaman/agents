@@ -1,0 +1,97 @@
+{# Templates for Adaptive Reflexion Strategy (ADaPT + Reflexion combined) #}
+
+{% macro action_prompt(tool_names) %}
+Based on the conversation history and accumulated insights, select the tool(s) to execute.
+
+Available tools: {{ tool_names | join(', ') }}
+
+## Execution Guidelines:
+- Apply lessons from any "Lessons from Previous Attempts" shown above
+- Avoid repeating approaches that have already failed
+- Make concrete progress toward the objective
+- If you have sufficient information, call 'finish' with success=true
+
+## Important:
+- Each retry should try something DIFFERENT than before
+- If the same error keeps occurring, the approach needs to fundamentally change
+- Call 'finish' with success=false if you've exhausted reasonable alternatives
+{% endmacro %}
+
+{% macro reflection_prompt(failure_context) %}
+## Reflection Required
+
+A failure occurred during execution:
+
+**What happened**: {{ failure_context }}
+
+## Analyze and Learn:
+1. What was the root cause of this failure?
+2. What assumption or approach was incorrect?
+3. What should be done differently?
+
+Provide a concise insight (1-3 sentences) that will help the next attempt succeed.
+Focus on actionable corrections, not just describing the error.
+
+Your insight:
+{% endmacro %}
+
+{% macro decomposition_prompt(failure_summary, reflection_count, tool_names) %}
+## Task Decomposition Required
+
+After {{ reflection_count }} reflection cycles, the direct approach has not succeeded.
+
+**Accumulated failure context**: {{ failure_summary }}
+
+The task appears to be too complex for a direct approach. It's time to decompose it into subtasks.
+
+Available tools: {{ tool_names | join(', ') }}
+
+## Decomposition Strategy:
+
+Based on the failures and insights gathered, break this objective into smaller subtasks that:
+1. Avoid the failure patterns identified in reflections
+2. Are independently accomplishable
+3. Together will complete the original objective
+
+## Guidelines:
+- Use `delegate_subtask` for each major subtask
+- Each subtask should be simpler than the original objective
+- Include relevant context and learnings from failures
+- Consider parallel vs sequential subtask execution
+
+## Action:
+Call `delegate_subtask` for each subtask, or call appropriate tools to implement your decomposition plan.
+{% endmacro %}
+
+{% macro synthesis_prompt(subtask_results, insights) %}
+## Synthesize Results
+
+Subtask results:
+{% for result in subtask_results %}
+- **{{ result.objective }}**: {{ "Success" if result.success else "Failed" }} - {{ result.result }}
+{% endfor %}
+
+Insights applied:
+{% for insight in insights %}
+- {{ insight.insight }}
+{% endfor %}
+
+## Your Task:
+Combine the subtask results to complete the original objective.
+
+If all critical subtasks succeeded:
+- Synthesize outputs into a final result
+- Call 'finish' with success=true
+
+If subtasks failed:
+- Determine if the objective can still be achieved
+- Call 'finish' with appropriate success status and explanation
+{% endmacro %}
+
+{% macro status_summary(phase, iterations, reflections, decomposed) %}
+## Strategy Status
+- Phase: {{ phase }}
+- Iterations: {{ iterations }}
+- Reflections: {{ reflections }}
+- Decomposed: {{ "Yes" if decomposed else "No" }}
+{% endmacro %}

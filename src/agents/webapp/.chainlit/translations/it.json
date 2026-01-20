@@ -1,0 +1,249 @@
+{
+  "alerts": {
+    "best-practice": "Miglior Soluzione",
+    "beta": "Beta",
+    "caution": "Attenzione",
+    "debug": "Debug",
+    "example": "Esempio",
+    "help": "Aiuto",
+    "idea": "Idea",
+    "important": "Importante",
+    "info": "Info",
+    "note": "Nota",
+    "pending": "In sospeso",
+    "security": "Sicurezza",
+    "success": "Successo",
+    "tip": "Suggerimento",
+    "warning": "Avviso"
+  },
+  "apiKeys": {
+    "description": "Per utilizzare l'app, sono necessarie le seguenti chiavi API. Le chiavi sono salvate nella memoria locale del tuo dispositivo.",
+    "success": {
+      "saved": "Salvataggio riuscito"
+    },
+    "title": "Chiavi API richieste"
+  },
+  "auth": {
+    "login": {
+      "errors": {
+        "callback": "Prova ad accedere con un account diverso",
+        "credentialsSignin": "Accesso non riuscito. Verifica che i dati forniti siano corretti",
+        "default": "Impossibile effettuare l'accesso",
+        "emailCreateAccount": "Prova ad accedere con un account diverso",
+        "emailSignin": "Impossibile inviare l'email",
+        "emailVerify": "Verifica la tua email, \u00e8 stata inviata una nuova email",
+        "oauthAccountNotLinked": "Per confermare la tua identit\u00e0, accedi con lo stesso account che hai usato in precedenza",
+        "oauthCallback": "Prova ad accedere con un account diverso",
+        "oauthCreateAccount": "Prova ad accedere con un account diverso",
+        "oauthSignin": "Prova ad accedere con un account diverso",
+        "redirectUriMismatch": "L'URI di reindirizzamento non corrisponde alla configurazione dell'app OAuth",
+        "sessionRequired": "Accedi per visualizzare questa pagina",
+        "signin": "Prova ad accedere con un account diverso"
+      },
+      "form": {
+        "actions": {
+          "signin": "Accedi"
+        },
+        "alternativeText": {
+          "or": "O"
+        },
+        "email": {
+          "label": "Indirizzo email",
+          "placeholder": "me@example.com",
+          "required": "l'email \u00e8 un campo obbligatorio"
+        },
+        "password": {
+          "label": "Password",
+          "required": "la password \u00e8 un campo obbligatorio"
+        }
+      },
+      "title": "Accedi per utilizzare l'app"
+    },
+    "provider": {
+      "continue": "Continua con {{provider}}"
+    }
+  },
+  "chat": {
+    "commands": {
+      "availableTools": "Strumenti disponibili",
+      "button": "Strumenti",
+      "changeTool": "Cambia strumento"
+    },
+    "favorites": {
+      "headline": "Messaggi preferiti",
+      "use": "Usa un messaggio preferito"
+    },
+    "fileUpload": {
+      "actions": {
+        "cancelUpload": "Annulla caricamento",
+        "removeAttachment": "Rimuovi allegato"
+      },
+      "browse": "Sfoglia file",
+      "dragDrop": "Trascina e rilascia i file qui",
+      "errors": {
+        "cancelled": "Caricamento annullato di",
+        "failed": "Caricamento file non riuscito"
+      },
+      "sizeLimit": "Limite:"
+    },
+    "history": {
+      "empty": "Cos\u00ec vuoto...",
+      "show": "Mostra cronologia",
+      "title": "Cronologia chat"
+    },
+    "input": {
+      "actions": {
+        "attachFiles": "Allega file",
+        "send": "Invia messaggio",
+        "stop": "Interrompi attivit\u00e0"
+      },
+      "placeholder": "Scrivi un messaggio..."
+    },
+    "messages": {
+      "actions": {
+        "copy": {
+          "button": "Copia negli appunti",
+          "success": "Copiato!"
+        }
+      },
+      "feedback": {
+        "dialog": {
+          "submit": "Invia feedback",
+          "title": "Aggiungi un commento",
+          "yourFeedback": "Il tuo feedback..."
+        },
+        "edit": "Modifica feedback",
+        "negative": "Non utile",
+        "positive": "Utile",
+        "status": {
+          "updated": "Feedback aggiornato",
+          "updating": "Aggiornamento"
+        }
+      },
+      "status": {
+        "used": "Utilizzato",
+        "using": "In uso"
+      }
+    },
+    "settings": {
+      "customize": "Personalizza le impostazioni della tua chat qui",
+      "title": "Impostazioni"
+    },
+    "speech": {
+      "connecting": "Connettendo",
+      "start": "Inizia registrazione",
+      "stop": "Interrompi registrazione"
+    },
+    "watermark": "Gli LLMS possono commettere errori. Verifica le info importanti."
+  },
+  "common": {
+    "actions": {
+      "cancel": "Cancella",
+      "confirm": "Conferma",
+      "continue": "Continua",
+      "goBack": "Ritorna",
+      "reset": "Reset",
+      "submit": "Invia"
+    },
+    "status": {
+      "error": {
+        "default": "Si \u00e8 verificato un errore",
+        "serverConnection": "Impossibile connettersi al server"
+      },
+      "loading": "Caricamento..."
+    }
+  },
+  "components": {
+    "MultiSelectInput": {
+      "placeholder": "Seleziona..."
+    }
+  },
+  "navigation": {
+    "header": {
+      "chat": "Chat",
+      "readme": "Leggimi",
+      "theme": {
+        "dark": "Tema Scuro",
+        "light": "Tema Chiaro",
+        "system": "Usa tema di sistema"
+      }
+    },
+    "newChat": {
+      "button": "Nuova Chat",
+      "dialog": {
+        "description": "Sei sicuro di voler creare una nuova chat? La chat corrente verr\u00e0 chiusa.",
+        "title": "Crea Nuova Chat",
+        "tooltip": "Nuova Chat"
+      }
+    },
+    "user": {
+      "menu": {
+        "apiKeys": "Chiavi API",
+        "logout": "Disconnettiti",
+        "settings": "Impostazioni",
+        "settingsKey": "S"
+      }
+    }
+  },
+  "threadHistory": {
+    "sidebar": {
+      "actions": {
+        "close": "Chiudi barra laterale",
+        "open": "Apri barra laterale"
+      },
+      "empty": "Nessuna chat trovata",
+      "filters": {
+        "placeholder": "Cerca conversazioni...",
+        "search": "Cerca"
+      },
+      "timeframes": {
+        "previous30days": "Ultimi 30 giorni",
+        "previous7days": "Ultimi 7 giorni",
+        "today": "Oggi",
+        "yesterday": "Ieri"
+      },
+      "title": "Chat precedenti"
+    },
+    "thread": {
+      "actions": {
+        "delete": {
+          "description": "Stai per eliminare la chat insieme ai suoi messaggi ed elementi. Questa azione non pu\u00f2 essere annullata",
+          "inProgress": "Eliminazione chat",
+          "success": "Chat eliminata",
+          "title": "Conferma eliminazione"
+        },
+        "rename": {
+          "description": "Inserisci un nuovo nome per questa conversazione",
+          "form": {
+            "name": {
+              "label": "Nome",
+              "placeholder": "Inserisci nuovo nome"
+            }
+          },
+          "inProgress": "Rinomina chat",
+          "success": "Chat rinominata!",
+          "title": "Rinomina chat"
+        },
+        "share": {
+          "button": "Condividi",
+          "error": {
+            "create": "Impossibile creare il link di condivisione",
+            "unshare": "Impossibile annullare la condivisione della chat"
+          },
+          "status": {
+            "copied": "Link copiato",
+            "created": "Link di condivisione creato!",
+            "unshared": "Condivisione disabilitata per questa chat"
+          },
+          "title": "Condividi link conversazione"
+        }
+      },
+      "menu": {
+        "delete": "Elimina",
+        "rename": "Rinomina",
+        "share": "Condividi"
+      },
+      "untitled": "Conversazione senza titolo"
+    }
+  }
+}
