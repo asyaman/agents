@@ -16,7 +16,7 @@ from loguru import logger
 from pydantic import BaseModel, Field
 
 from agents.agent_tool.agent_tool import AgentTool, AgentToolInput
-from agents.agent_tool.planning_strategies import PlanningStrategy
+from agents.agent_tool.base_strategy import PlanningStrategy
 from agents.configs import get_agent_tool_template_module
 from agents.agent_tool.recursive.context import (
     LevelExecution,

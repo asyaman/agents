@@ -19,7 +19,7 @@ import typing as t
 
 from openai.types.chat import ChatCompletionMessageParam
 
-from agents.agent_tool.planning_strategies import PlanningStrategy, StrategyOutput
+from agents.agent_tool.base_strategy import PlanningStrategy, StrategyOutput
 from agents.configs import get_agent_tool_template_module
 from agents.llm_core.llm_client import LLMClient
 from agents.tools_core.base_tool import BaseTool

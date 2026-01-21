@@ -10,7 +10,7 @@ from agents.agent_tool.agent_tool import (
     AgentToolOutput,
     create_finish_tool,
 )
-from agents.agent_tool.planning_strategies import StrategyOutput, PlanningStrategy
+from agents.agent_tool.base_strategy import StrategyOutput, PlanningStrategy
 from agents.agent_tool.direct_strategy import DirectStrategy
 from agents.llm_core.llm_client import ToolCall
 from agents.agent_tool.tests.common_fixtures import (

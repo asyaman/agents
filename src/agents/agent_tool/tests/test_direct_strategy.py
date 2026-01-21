@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agents.agent_tool.planning_strategies import StrategyOutput
+from agents.agent_tool.base_strategy import StrategyOutput
 from agents.agent_tool.direct_strategy import DirectStrategy
 from agents.llm_core.llm_client import ToolCall, ToolCallResponse
 from agents.agent_tool.tests.common_fixtures import SearchTool

@@ -13,7 +13,7 @@ from loguru import logger
 from pydantic import BaseModel
 
 from agents.agent_tool.agent_tool import AgentTool, AgentToolInput, AgentToolOutput
-from agents.agent_tool.planning_strategies import StrategyOutput
+from agents.agent_tool.base_strategy import StrategyOutput
 from agents.llm_core.llm_client import ToolCall
 from agents.tools_core.base_tool import BaseTool
 

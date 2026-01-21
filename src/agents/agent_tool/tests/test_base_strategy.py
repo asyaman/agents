@@ -1,6 +1,6 @@
 """Tests for planning strategies base classes."""
 
-from agents.agent_tool.planning_strategies import StrategyOutput
+from agents.agent_tool.base_strategy import StrategyOutput
 from agents.llm_core.llm_client import ToolCall
 
 

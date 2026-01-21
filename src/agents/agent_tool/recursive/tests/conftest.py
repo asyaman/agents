@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from agents.agent_tool.planning_strategies import PlanningStrategy
+from agents.agent_tool.base_strategy import PlanningStrategy
 from agents.agent_tool.direct_strategy import DirectStrategy
 from agents.agent_tool.tests.common_fixtures import (
     CalculatorTool,

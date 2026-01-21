@@ -15,7 +15,7 @@ AgentTool runs an agentic loop:
 | File | Purpose |
 |------|---------|
 | `agent_tool.py` | Main `AgentTool` class |
-| `planning_strategies.py` | Base class `PlanningStrategy` and `StrategyOutput` |
+| `base_strategy.py` | Base class `PlanningStrategy` and `StrategyOutput` |
 | `direct_strategy.py` | DirectStrategy - single LLM call |
 | `react_strategy.py` | ReactStrategy - Reason-Act-Observe pattern |
 | `adapt_strategy.py` | AdaptStrategy - try simple first, decompose on failure |
@@ -90,6 +90,12 @@ strategy = DirectStrategy(
 )
 ```
 
+
+**Execution Flow** 
+```
+Input → [LLM + Tools] → Tool Calls → Execute → Loop or Finish
+```
+
 ### ReactStrategy
 
 Reason-Act-Observe pattern. Two-step process:
@@ -103,7 +109,13 @@ strategy = ReactStrategy(
     llm_client=client,
     model="gpt-4o",  # Optional: override client's model
 )
-)
+```
+
+**Execution Flow** 
+```
+Input → [Reason] → Thought → [Act] → Tool Call → Execute → [Observe] → Loop
+            │                                                   │
+            └──────────────── Reasoning Context ◄───────────────┘
 ```
 
 ### AdaptStrategy (ADaPT)
@@ -124,6 +136,16 @@ strategy = AdaptStrategy(
 )
 ```
 
+**Execution Flow** 
+
+```
+Input → [Direct Attempt] ─success→ Finish
+              │
+           failure
+              ▼
+        [Decompose] → Subtask₁ → Subtask₂ → ... → [Combine] → Finish
+```
+
 ### ReflexionStrategy
 
 Learn from mistakes through self-reflection. Behavioral adaptation pattern:
@@ -139,6 +161,17 @@ strategy = ReflexionStrategy(
     max_reflections=3,          # Max reflection cycles
     reflection_threshold=2,     # Failures before reflecting
 )
+```
+**Execution Flow** 
+
+```
+Input → [Attempt] ─success→ Finish
+             │
+          failure
+             ▼
+       [Reflect] → Insights → [Retry with Memory] → Loop
+             ▲                        │
+             └────── if still failing ┘
 ```
 
 ### AdaptiveReflexionStrategy
@@ -156,6 +189,19 @@ strategy = AdaptiveReflexionStrategy(
     max_reflections=2,
     max_direct_attempts=2,
 )
+```
+**Execution Flow** 
+
+```
+Input → [Attempt] ─success→ Finish
+             │
+          failure
+             ▼
+       [Reflect] → [Retry] ─success→ Finish
+             │          │
+             │       failure (reflections exhausted)
+             │          ▼
+             └──► [Decompose] → Subtasks → [Combine] → Finish
 ```
 
 ## Recursive Agents
@@ -184,6 +230,16 @@ for level in result.execution_history:
     print(f"Depth {level.depth}: {level.objective}")
 ```
 
+
+**Execution Flow **
+```
+Objective → [Root d=0] → Tool? ─yes→ Execute → Result ──────────────────────────────→ Combine → Finish
+                │                                                                       ▲
+                └─ SubAgent? ─yes→ [Child d=1] → Tool? → Execute → Result ───Combine ───┘
+                                        │                                       ▲
+                                        └─ SubAgent? → [d=2] → ... → Result ────┘
+```
+
 ## API Reference
 
 ### AgentTool
@@ -198,6 +254,15 @@ class AgentTool(BaseTool[AgentToolInput, AgentToolOutput]):
         include_finish_tool: bool = True,
         parallel_tool_calls: bool = True,
     )
+```
+
+**Execution Flow**
+```
+Objective → [Strategy.plan] → Tool Calls? ─No→ Finished
+                   ▲              │
+                   │             Yes
+                   │              ▼
+                   └── History ← [Execute Tools]
 ```
 
 ### AgentToolInput
@@ -242,32 +307,6 @@ class StrategyOutput(BaseModel):
     result: str | None       # Final result if finished
 ```
 
-## Execution Flow
-
-```
-AgentToolInput.objective
-        │
-        ▼
-┌───────────────────┐
-│   Strategy.plan   │ ◄──────┐
-└─────────┬─────────┘        │
-          │                  │
-          ▼                  │
-    ┌─────────────┐          │
-    │ Tool Calls? │──No──► Finished
-    └─────┬───────┘          │
-          │ Yes              │
-          ▼                  │
-┌───────────────────┐        │
-│  Execute Tools    │        │
-│  (parallel/seq)   │        │
-└─────────┬─────────┘        │
-          │                  │
-          ▼                  │
-┌───────────────────┐        │
-│ Add to History    │────────┘
-└───────────────────┘
-```
 
 ## See Also
 

@@ -6,7 +6,7 @@ tasks with appropriate escalation rules.
 """
 
 from agents.agent_tool.agent_tool import AgentTool, AgentToolInput, AgentToolOutput
-from agents.agent_tool.planning_strategies import PlanningStrategy
+from agents.agent_tool.base_strategy import PlanningStrategy
 from agents.exemple_agents.tau_bench_retail.tools import (
     Calculate,
     CancelPendingOrder,

@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 
 from agents.configs import get_agent_tool_template_module
 from agents.tools_core.base_tool import BaseTool
-from agents.agent_tool.planning_strategies import PlanningStrategy
+from agents.agent_tool.base_strategy import PlanningStrategy
 from agents.llm_core.llm_client import ToolCall
 from agents.tools_core.base_tool import create_fn_tool
 

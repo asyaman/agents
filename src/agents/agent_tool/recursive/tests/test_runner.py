@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agents.agent_tool.planning_strategies import PlanningStrategy
+from agents.agent_tool.base_strategy import PlanningStrategy
 from agents.agent_tool.direct_strategy import DirectStrategy
 from agents.agent_tool.recursive.context import (
     LevelExecution,
