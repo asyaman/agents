@@ -34,7 +34,7 @@ def create_model_from_schema(
 
     Args:
         json_schema: A dictionary representing the JSON schema.
-        add_examples: Flag indicating whether exemples for fields shoudl be added
+        add_examples: Flag indicating whether examples for fields shoudl be added
         definitions: Top level reference definitions if the json schema is
             of format "$defs" and "$refs".
             We need to pass through the nested structure the top level reference
@@ -429,7 +429,9 @@ def process_schema(
         if "required" not in schema:
             schema["required"] = []
         if field_name not in schema["required"]:
-            schema["required"].append(field_name)  # pyright: ignore[reportUnknownMemberType]
+            schema["required"].append(
+                field_name
+            )  # pyright: ignore[reportUnknownMemberType]
 
     if enforce_additional_properties:
         _enforce_additional_properties(schema)

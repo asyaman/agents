@@ -7,7 +7,7 @@ tasks with appropriate escalation rules.
 
 from agents.agent_tool.agent_tool import AgentTool, AgentToolInput, AgentToolOutput
 from agents.agent_tool.base_strategy import PlanningStrategy
-from agents.exemple_agents.tau_bench_retail.tools import (
+from agents.example_agents.tau_bench_retail.tools import (
     Calculate,
     CancelPendingOrder,
     ExchangeDeliveredOrderItems,
@@ -25,7 +25,7 @@ from agents.exemple_agents.tau_bench_retail.tools import (
     ReturnDeliveredOrderItems,
     TransferToHumanAgents,
 )
-from agents.exemple_agents.tau_bench_retail.agent_tools.agents_tau_bench_tool import (
+from agents.example_agents.tau_bench_retail.agent_tools.agents_tau_bench_tool import (
     create_tau_bench_tool,
 )
 from agents.tools_core.base_tool import BaseTool

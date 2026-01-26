@@ -3,7 +3,7 @@
 import json
 from typing import Any, Dict, List
 
-from agents.exemple_agents.tau_bench_retail.tools.tool import Tool
+from agents.example_agents.tau_bench_retail.tools.tool import Tool
 
 
 class ModifyPendingOrderItems(Tool):

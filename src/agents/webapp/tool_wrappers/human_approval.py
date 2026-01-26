@@ -25,7 +25,7 @@ import chainlit as cl
 from loguru import logger
 
 from agents.tools_core.base_tool import BaseTool
-from agents.exemple_agents.email_outreach.tools import (
+from agents.example_agents.email_outreach.tools import (
     HumanApprovalInput,
     HumanApprovalOutput,
 )

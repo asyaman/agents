@@ -16,7 +16,7 @@ LLM Client Configuration:
 from agents.agent_tool.agent_tool import AgentTool
 from agents.agent_tool.react_strategy import ReactStrategy
 from agents.llm_core.llm_client import LLMClient, create_azure_client
-from agents.exemple_agents.email_outreach.email_outreach_agent import (
+from agents.example_agents.email_outreach.email_outreach_agent import (
     EMAIL_OUTREACH_GUIDANCE_MESSAGES,
     create_email_outreach_tools,
 )

@@ -2,8 +2,8 @@ import typing as t
 
 from pydantic import BaseModel, Field
 
-from agents.exemple_agents.tau_bench_retail.tool_data.loader import load_data
-from agents.exemple_agents.tau_bench_retail.tools.tool import Tool as TauBenchRetailTool
+from agents.example_agents.tau_bench_retail.tool_data.loader import load_data
+from agents.example_agents.tau_bench_retail.tools.tool import Tool as TauBenchRetailTool
 from agents.tools_core.base_tool import BaseTool
 from agents.utilities.pydantic_utils import (
     create_example_from_schema,

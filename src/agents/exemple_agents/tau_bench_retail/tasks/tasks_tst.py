@@ -1,4 +1,4 @@
-from agents.exemple_agents.tau_bench_retail.tasks.types import Action, Task
+from agents.example_agents.tau_bench_retail.tasks.types import Action, Task
 
 TASKS_TEST = [
     Task(

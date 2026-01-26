@@ -15,7 +15,7 @@ LLM Client Configuration:
 
 from agents.agent_tool.agent_tool import AgentTool
 from agents.agent_tool.react_strategy import ReactStrategy
-from agents.exemple_agents.tau_bench_retail.retail_agent import (
+from agents.example_agents.tau_bench_retail.retail_agent import (
     RETAIL_GUIDANCE_MESSAGES,
     create_retail_tools,
 )
