@@ -22,14 +22,13 @@ pip install chainlit loguru pydantic-settings
 
 ```bash
 export OPENAI_API_KEY="your-api-key"
-export AGENT_NAME="email_outreach"  # Optional, defaults to email_outreach
 ```
 
 ### 3. Run the App
 
 ```bash
 cd src/agents/webapp
-chainlit run app.py --port 9001
+AGENT_NAME=email_outreach uv run chainlit run app.py --port 9001
 ```
 
 Open http://localhost:9001 in your browser.
