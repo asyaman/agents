@@ -6,22 +6,12 @@ import pytest
 
 from agents.agent_tool.base_strategy import StrategyOutput
 from agents.agent_tool.direct_strategy import DirectStrategy
-from agents.llm_core.llm_client import ToolCall, ToolCallResponse
 from agents.agent_tool.tests.common_fixtures import SearchTool
+from agents.llm_core.llm_client import ToolCall, ToolCallResponse
 
 
 class TestDirectStrategy:
     """Tests for DirectStrategy."""
-
-    def test_init_default_finish_tool(self, mock_llm_client: MagicMock):
-        strategy = DirectStrategy(llm_client=mock_llm_client)
-        assert strategy.finish_tool_name == "finish"
-
-    def test_init_custom_finish_tool(self, mock_llm_client: MagicMock):
-        strategy = DirectStrategy(
-            llm_client=mock_llm_client, finish_tool_name="complete"
-        )
-        assert strategy.finish_tool_name == "complete"
 
     def test_init_default_direct_prompt(self, mock_llm_client: MagicMock):
         strategy = DirectStrategy(llm_client=mock_llm_client)
@@ -85,16 +75,16 @@ class TestDirectStrategy:
         )
 
         assert isinstance(result, StrategyOutput)
-        assert not result.finished
         assert len(result.tool_calls) == 1
         assert result.tool_calls[0].tool_name == "search"
         assert result.tool_calls[0].arguments == {"query": "test"}
 
     @pytest.mark.asyncio
-    async def test_plan_with_finish_tool(
+    async def test_plan_with_finish_tool_passes_through(
         self, mock_llm_client: MagicMock, search_tool: SearchTool
     ):
-        """Test that finish tool signals completion."""
+        """Strategy passes finish tool through unchanged. AgentTool detects
+        finish and terminates; strategy no longer special-cases it."""
         strategy = DirectStrategy(llm_client=mock_llm_client)
 
         mock_llm_client.agenerate.return_value = ToolCallResponse(
@@ -112,44 +102,19 @@ class TestDirectStrategy:
             tools=[search_tool],
         )
 
-        assert result.finished
-        assert result.result == "Task done"
-        assert result.success is True
+        # Strategy returns finish in tool_calls; doesn't extract args itself.
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].tool_name == "finish"
+        assert result.tool_calls[0].arguments["result"] == "Task done"
+        assert result.tool_calls[0].arguments["success"] is True
 
     @pytest.mark.asyncio
-    async def test_plan_with_finish_tool_success_false(
+    async def test_plan_no_tool_calls_signals_unsuccessful_terminate(
         self, mock_llm_client: MagicMock, search_tool: SearchTool
     ):
-        """Test that finish tool with success=false propagates correctly."""
+        """Empty tool_calls = strategy-internal terminate (success=False)."""
         strategy = DirectStrategy(llm_client=mock_llm_client)
 
-        mock_llm_client.agenerate.return_value = ToolCallResponse(
-            tool_calls=[
-                ToolCall(
-                    id="test-id-1",
-                    tool_name="finish",
-                    arguments={"result": "Task failed", "success": False},
-                )
-            ]
-        )
-
-        result = await strategy.plan(
-            messages=[{"role": "user", "content": "Complete task"}],
-            tools=[search_tool],
-        )
-
-        assert result.finished
-        assert result.result == "Task failed"
-        assert result.success is False
-
-    @pytest.mark.asyncio
-    async def test_plan_no_tool_calls_returns_unsuccessful_finish(
-        self, mock_llm_client: MagicMock, search_tool: SearchTool
-    ):
-        """Test that empty tool calls = unsuccessful finish (LLM didn't use finish tool)."""
-        strategy = DirectStrategy(llm_client=mock_llm_client)
-
-        # ToolCallResponse with empty tool_calls list
         mock_llm_client.agenerate.return_value = ToolCallResponse(tool_calls=[])
 
         result = await strategy.plan(
@@ -157,6 +122,6 @@ class TestDirectStrategy:
             tools=[search_tool],
         )
 
-        assert result.finished
-        assert result.success is False  # No tool calls = unsuccessful
+        assert result.tool_calls == []  # implicit terminate signal
+        assert result.success is False
         assert result.result == "No tool calls returned by LLM"

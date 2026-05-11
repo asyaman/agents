@@ -1,6 +1,7 @@
 """Common fixtures for agent_tool tests."""
 
 from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 from pydantic import BaseModel, Field
 
@@ -56,7 +57,7 @@ class CalculatorTool(BaseTool[CalculatorInput, CalculatorOutput]):
 
     def invoke(self, input: CalculatorInput) -> CalculatorOutput:
         # Simple eval for testing (not safe for production!)
-        result = eval(input.expression)  # noqa: S307
+        result = eval(input.expression)
         return CalculatorOutput(result=float(result))
 
     async def ainvoke(self, input: CalculatorInput) -> CalculatorOutput:

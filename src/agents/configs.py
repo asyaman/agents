@@ -5,7 +5,6 @@ from pathlib import Path
 import jinja2
 from jinja2.sandbox import SandboxedEnvironment
 
-
 AGENTS_ROOT = Path(__file__).parent
 LLM_TOOLS_PROMPTS_DIR = AGENTS_ROOT / "tools" / "llm_tools" / "prompts"
 TOOLS_CORE_PROMPTS_DIR = AGENTS_ROOT / "tools_core" / "internal_tools" / "prompts"

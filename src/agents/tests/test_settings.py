@@ -1,6 +1,6 @@
-import agents.settings as settings_module
 import pytest
 
+import agents.settings as settings_module
 from agents.settings import Settings, configure_settings, get_settings
 
 

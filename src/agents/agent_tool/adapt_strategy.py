@@ -20,6 +20,7 @@ from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field
 
 from agents.agent_tool.base_strategy import PlanningStrategy, StrategyOutput
+from agents.agent_tool.plan_state import PlanState
 from agents.configs import get_agent_tool_template_module
 from agents.llm_core.llm_client import LLMClient
 from agents.tools_core.base_tool import BaseTool
@@ -61,9 +62,10 @@ class AdaptStrategy(PlanningStrategy):
         - stagnation_window: Iterations without progress before decomposition
 
     Return behavior matches base strategies:
-        - No tool_calls → finished=True, success=False
-        - FINISH tool called → finished=True, success=<from args>
-        - Other tools called → finished=False, tool_calls=[...]
+        - No tool_calls → tool_calls=[], success=False (strategy-internal
+          terminate; AgentTool reads success/result here).
+        - Any tool_calls (including `finish`) → returned as-is. AgentTool
+          executes them and detects `finish` to drive termination.
     """
 
     def __init__(
@@ -73,7 +75,6 @@ class AdaptStrategy(PlanningStrategy):
         max_direct_attempts: int = 3,
         error_threshold: int = 2,
         stagnation_window: int = 2,
-        finish_tool_name: str = "finish",
         sub_agent_tool_name: str = "delegate_subtask",
         decomposition_prompt: str | None = None,
         direct_prompt: str | None = None,
@@ -87,7 +88,6 @@ class AdaptStrategy(PlanningStrategy):
             max_direct_attempts: Max iterations before considering decomposition
             error_threshold: Tool errors count triggering decomposition
             stagnation_window: Repeated similar states triggering decomposition
-            finish_tool_name: Name of the finish tool
             sub_agent_tool_name: Name of the SubAgentTool for decomposition
             decomposition_prompt: Custom prompt for decomposition phase
             direct_prompt: Custom prompt for direct execution phase
@@ -97,7 +97,6 @@ class AdaptStrategy(PlanningStrategy):
         self.max_direct_attempts = max_direct_attempts
         self.error_threshold = error_threshold
         self.stagnation_window = stagnation_window
-        self.finish_tool_name = finish_tool_name
         self.sub_agent_tool_name = sub_agent_tool_name
         self.decomposition_prompt = decomposition_prompt
         self.direct_prompt = direct_prompt
@@ -204,6 +203,7 @@ class AdaptStrategy(PlanningStrategy):
         messages: list[ChatCompletionMessageParam],
         tools: list[BaseTool[t.Any, t.Any]],
         parallel_tool_calls: bool = True,
+        plan_state: PlanState | None = None,
     ) -> StrategyOutput:
         """
         Generate next actions using ADaPT pattern.
@@ -212,6 +212,9 @@ class AdaptStrategy(PlanningStrategy):
             DIRECT → (failure detected) → DECOMPOSING → EXECUTING
             DIRECT → (success) → finish
             EXECUTING → (subtasks complete) → finish
+
+        plan_state is accepted for signature compatibility; AdaptStrategy is
+        plan-state-agnostic.
         """
         # Check if decomposition is even possible
         can_decompose = self._has_sub_agent_tool(tools)
@@ -333,25 +336,21 @@ class AdaptStrategy(PlanningStrategy):
         return self._process_response(response)
 
     def _process_response(self, response: t.Any) -> StrategyOutput:
-        """Process LLM response into StrategyOutput."""
-        # No tool calls → unsuccessful finish
+        """Process LLM response into StrategyOutput.
+
+        Strategy-side termination is implicit: empty tool_calls means stop.
+        AgentTool detects `finish` in non-empty tool_calls separately.
+        """
+        # No tool calls → strategy-internal terminate
         if not response.tool_calls:
             return StrategyOutput(
-                finished=True,
+                tool_calls=[],
                 success=False,
                 result=response.finish_reason or "No tool calls returned by LLM",
             )
 
-        # Check for finish tool
-        for tc in response.tool_calls:
-            if tc.tool_name.upper() == self.finish_tool_name.upper():
-                return StrategyOutput(
-                    finished=True,
-                    success=tc.arguments.get("success", True),
-                    result=tc.arguments.get("result", "Task completed"),
-                )
-
-        # Return tool calls for execution
+        # Pass tool_calls through (including any `finish`); AgentTool handles
+        # finish detection and termination.
         return StrategyOutput(tool_calls=response.tool_calls)
 
     def reset(self) -> None:

@@ -173,8 +173,9 @@ class TestToolSelector:
         selector = ToolSelector(mock_llm_client, batch_size=1)
 
         # Create 3 tools to trigger batching
-        from agents.tools_core.base_tool import BaseTool
         from pydantic import BaseModel
+
+        from agents.tools_core.base_tool import BaseTool
 
         class DummyInput(BaseModel):
             x: str
@@ -205,8 +206,9 @@ class TestToolSelector:
         mock_llm_client.agenerate.return_value.parsed = _DEFAULT_RESPONSE
         selector = ToolSelector(mock_llm_client, batch_size=1, parallel_mode=True)
 
-        from agents.tools_core.base_tool import BaseTool
         from pydantic import BaseModel
+
+        from agents.tools_core.base_tool import BaseTool
 
         class DummyInput(BaseModel):
             x: str

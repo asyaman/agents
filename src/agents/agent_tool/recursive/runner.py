@@ -8,9 +8,9 @@ Provides a clean interface to run recursive agent tasks with:
 - Aggregated statistics
 """
 
+import asyncio
 import typing as t
 from collections.abc import Callable
-import asyncio
 
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -142,12 +142,11 @@ class RecursiveAgentRunner:
         # Build root tools and get guidance if sub-agent is included
         root_tools, guidance_messages = await self._build_root_tools(objective)
 
-        # Create root agent
+        # Create root agent. `finish` is always added by AgentTool.
         root_agent = AgentTool(
             tools=root_tools,
             strategy=self.strategy_factory(),
             system_prompt=self.system_prompt,
-            include_finish_tool=True,
             parallel_tool_calls=self.parallel_tool_calls,
             guidance_messages=guidance_messages,
         )

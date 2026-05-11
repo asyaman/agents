@@ -1,4 +1,3 @@
-# noqa: E402
 
 from __future__ import annotations
 
@@ -6,7 +5,7 @@ import typing as t
 from pathlib import Path
 
 from dotenv import load_dotenv
-from pydantic_settings import BaseSettings, SettingsConfigDict  # noqa: E402
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from agents.llm_core.llm_configs import Provider
 

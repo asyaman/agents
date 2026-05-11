@@ -4,10 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from agents.agent_tool.agent_tool import FinishInput
 from agents.agent_tool.base_strategy import PlanningStrategy
 from agents.agent_tool.direct_strategy import DirectStrategy
 from agents.agent_tool.tests.common_fixtures import (
     CalculatorTool,
+    SearchInput,
     SearchTool,
     calculator_tool,
     mock_llm_client,
@@ -17,13 +19,13 @@ from agents.llm_core.llm_client import ToolCall, ToolCallResponse
 
 # Re-export fixtures from common_fixtures
 __all__ = [
-    "mock_llm_client",
-    "search_tool",
-    "calculator_tool",
-    "SearchTool",
     "CalculatorTool",
+    "SearchTool",
+    "calculator_tool",
+    "mock_llm_client",
     "mock_strategy_factory",
     "mock_tool_selector",
+    "search_tool",
     "simple_tools",
 ]
 
@@ -57,12 +59,14 @@ def simple_tools(search_tool: SearchTool, calculator_tool: CalculatorTool):
 @pytest.fixture
 def finish_tool_call():
     """Create a finish tool call response."""
+    args = {"result": "Task completed successfully", "success": True}
     return ToolCallResponse(
         tool_calls=[
             ToolCall(
                 id="finish-1",
                 tool_name="finish",
-                arguments={"result": "Task completed successfully", "success": True},
+                arguments=args,
+                parsed=FinishInput(**args),
             )
         ]
     )
@@ -71,12 +75,14 @@ def finish_tool_call():
 @pytest.fixture
 def search_tool_call():
     """Create a search tool call response."""
+    args = {"query": "test query"}
     return ToolCallResponse(
         tool_calls=[
             ToolCall(
                 id="search-1",
                 tool_name="search",
-                arguments={"query": "test query"},
+                arguments=args,
+                parsed=SearchInput(**args),
             )
         ]
     )

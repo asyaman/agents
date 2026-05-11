@@ -104,13 +104,12 @@ See llm_configs.py for full provider capability matrix.
 
 from __future__ import annotations
 
-import typing as t
 import json
-
-from loguru import logger
+import typing as t
 from copy import deepcopy
 from dataclasses import dataclass
 
+from loguru import logger
 from openai import APIConnectionError, APIError, AsyncOpenAI, OpenAI, RateLimitError
 from openai.types.chat import (
     ChatCompletion,
@@ -221,6 +220,11 @@ class ToolCall:
     tool_name: str
     arguments: dict[str, t.Any]
     parsed: BaseModel | None = None
+    # If non-None, this tool call's `arguments` failed pydantic validation
+    # against the tool's _input model. The agent loop turns this into a tool
+    # result error message so the model gets a chance to correct itself on the
+    # next iteration, instead of crashing the run with LLMValidationError.
+    parse_error: str | None = None
 
 
 @dataclass
@@ -318,7 +322,7 @@ def _create_tool_schema(
         "type": "function",
         "function": {
             "name": tool.name,
-            "description": tool.description,
+            "description": tool.description_with_examples(),
             "parameters": schema,
             "strict": strict,
         },
@@ -359,20 +363,34 @@ def _parse_tool_calls(
         tool = tool_map[tc.function.name]
         try:
             parsed = tool._input.model_validate(args)
+            result.append(
+                ToolCall(
+                    id=tc.id,
+                    tool_name=tc.function.name,
+                    arguments=args,
+                    parsed=parsed,
+                )
+            )
         except ValidationError as e:
-            raise LLMValidationError(
-                f"Tool arguments failed validation for {tc.function.name}: {e}",
-                validation_error=e,
+            # Don't raise — surface the validation error as a recoverable
+            # tool call. The agent loop's _execute_tool_calls will turn this
+            # into a tool result error message that the model sees on the
+            # next iteration, giving it a chance to correct its arguments
+            # rather than crashing the run.
+            warnings.warn(
+                f"LLM emitted invalid arguments for '{tc.function.name}': {e}. "
+                "Surfacing as a tool error result so the model can retry.",
+                RuntimeWarning,
             )
-
-        result.append(
-            ToolCall(
-                id=tc.id,
-                tool_name=tc.function.name,
-                arguments=args,
-                parsed=parsed,
+            result.append(
+                ToolCall(
+                    id=tc.id,
+                    tool_name=tc.function.name,
+                    arguments=args,
+                    parsed=None,
+                    parse_error=str(e),
+                )
             )
-        )
 
     return result
 

@@ -21,6 +21,7 @@ from openai.types.chat import ChatCompletionMessageParam
 from pydantic import BaseModel, Field
 
 from agents.agent_tool.base_strategy import PlanningStrategy, StrategyOutput
+from agents.agent_tool.plan_state import PlanState
 from agents.configs import get_agent_tool_template_module
 from agents.llm_core.llm_client import LLMClient
 from agents.tools_core.base_tool import BaseTool
@@ -119,9 +120,10 @@ class ReflexionStrategy(PlanningStrategy):
         - persistent_insights: Cross-task patterns (optional)
 
     Return behavior matches base strategies:
-        - No tool_calls → finished=True, success=False
-        - FINISH tool called → finished=True, success=<from args>
-        - Other tools called → finished=False, tool_calls=[...]
+        - No tool_calls → tool_calls=[], success=False (strategy-internal
+          terminate; AgentTool reads success/result here).
+        - Any tool_calls (including `finish`) → returned as-is. AgentTool
+          executes them and detects `finish` to drive termination.
     """
 
     def __init__(
@@ -130,7 +132,6 @@ class ReflexionStrategy(PlanningStrategy):
         model: str | None = None,
         max_reflections: int = 3,
         persist_insights: bool = False,
-        finish_tool_name: str = "finish",
         action_prompt: str | None = None,
         reflection_prompt: str | None = None,
     ):
@@ -142,7 +143,6 @@ class ReflexionStrategy(PlanningStrategy):
             model: Optional model override
             max_reflections: Maximum reflection cycles before giving up
             persist_insights: Keep insights across tasks (cross-task learning)
-            finish_tool_name: Name of the finish tool
             action_prompt: Custom prompt for action phase
             reflection_prompt: Custom prompt for reflection phase
         """
@@ -150,7 +150,6 @@ class ReflexionStrategy(PlanningStrategy):
         self.model = model
         self.max_reflections = max_reflections
         self.persist_insights = persist_insights
-        self.finish_tool_name = finish_tool_name
         self.action_prompt = action_prompt
         self.reflection_prompt = reflection_prompt
 
@@ -261,6 +260,7 @@ class ReflexionStrategy(PlanningStrategy):
         messages: list[ChatCompletionMessageParam],
         tools: list[BaseTool[t.Any, t.Any]],
         parallel_tool_calls: bool = True,
+        plan_state: PlanState | None = None,
     ) -> StrategyOutput:
         """
         Generate next actions using Reflexion pattern.
@@ -271,6 +271,9 @@ class ReflexionStrategy(PlanningStrategy):
             3. Inject accumulated insights into context
             4. Execute action phase with enhanced context
             5. Detect failure for next iteration
+
+        plan_state is accepted for signature compatibility; ReflexionStrategy is
+        plan-state-agnostic.
         """
         self._iteration += 1
         tool_names = [t.name for t in tools]
@@ -283,7 +286,7 @@ class ReflexionStrategy(PlanningStrategy):
                     self.max_reflections,
                 )
                 return StrategyOutput(
-                    finished=True,
+                    tool_calls=[],
                     success=False,
                     result=f"Failed after {self.max_reflections} reflection attempts. "
                     f"Last failure: {self._last_failure_context}",
@@ -335,40 +338,54 @@ class ReflexionStrategy(PlanningStrategy):
         # Step 4: Process response
         result = self._process_response(response)
 
-        # Step 5: Check for failure to trigger reflection next iteration
-        if not result.finished:
-            # We'll check for failure after tools execute (next plan() call)
+        # Step 5: Decide whether the loop will terminate this iteration so we
+        # can either reset failure state (on success-terminate) or schedule
+        # a reflection (if we're going to keep iterating).
+        # Termination paths: empty tool_calls (strategy-internal) OR a finish
+        # tool was emitted (AgentTool will terminate after execution).
+        finish_tc = next(
+            (
+                tc for tc in result.tool_calls
+                if tc.tool_name.upper() == "FINISH"
+            ),
+            None,
+        )
+        is_terminating = (not result.tool_calls) or (finish_tc is not None)
+
+        if is_terminating:
+            success = (
+                finish_tc.arguments.get("success", True)
+                if finish_tc is not None
+                else result.success
+            )
+            if success:
+                self.memory.consecutive_failures = 0
+        else:
+            # Loop will continue; check for failure to trigger reflection
+            # in the next plan() call.
             failure_detected, failure_desc = self._detect_failure_in_messages(messages)
             if failure_detected:
                 self._pending_reflection = True
                 self._last_failure_context = failure_desc
-        else:
-            # Task finished - reset consecutive failures on success
-            if result.success:
-                self.memory.consecutive_failures = 0
 
         return result
 
     def _process_response(self, response: t.Any) -> StrategyOutput:
-        """Process LLM response into StrategyOutput."""
-        # No tool calls → unsuccessful finish
+        """Process LLM response into StrategyOutput.
+
+        Strategy-side termination is implicit: empty tool_calls means stop.
+        AgentTool detects `finish` in non-empty tool_calls separately.
+        """
+        # No tool calls → strategy-internal terminate
         if not response.tool_calls:
             return StrategyOutput(
-                finished=True,
+                tool_calls=[],
                 success=False,
                 result=response.finish_reason or "No tool calls returned by LLM",
             )
 
-        # Check for finish tool
-        for tc in response.tool_calls:
-            if tc.tool_name.upper() == self.finish_tool_name.upper():
-                return StrategyOutput(
-                    finished=True,
-                    success=tc.arguments.get("success", True),
-                    result=tc.arguments.get("result", "Task completed"),
-                )
-
-        # Return tool calls for execution
+        # Pass tool_calls through (including any `finish`); AgentTool handles
+        # finish detection and termination.
         return StrategyOutput(tool_calls=response.tool_calls)
 
     def reset(self, full: bool = False) -> None:

@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from agents.agent_tool.agent_tool import FinishInput
 from agents.agent_tool.base_strategy import PlanningStrategy
 from agents.agent_tool.direct_strategy import DirectStrategy
 from agents.agent_tool.recursive.context import (
@@ -199,12 +200,14 @@ class TestSubAgentToolExecution:
         """Test that output is opaque (no internal messages exposed)."""
         initialize_recursion_context(max_depth=3)
 
+        finish_args = {"result": "The answer is 42", "success": True}
         mock_llm_client.agenerate.return_value = ToolCallResponse(
             tool_calls=[
                 ToolCall(
                     id="finish-1",
                     tool_name="finish",
-                    arguments={"result": "The answer is 42", "success": True},
+                    arguments=finish_args,
+                    parsed=FinishInput(**finish_args),
                 )
             ]
         )
@@ -403,8 +406,9 @@ class TestSubAgentToolGuidance:
         guidance1 = SubAgentTool.get_guidance_prompt()
 
         # Should also work from instance
-        from agents.agent_tool.direct_strategy import DirectStrategy
         from unittest.mock import MagicMock
+
+        from agents.agent_tool.direct_strategy import DirectStrategy
 
         mock_client = MagicMock()
         tool = SubAgentTool(

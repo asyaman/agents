@@ -2,11 +2,11 @@
 
 from unittest.mock import MagicMock
 
-from agents.tools_core.internal_tools.tests.common_fixtures import (
-    SimpleTool,
-    SimpleInput,
-)
 from agents.tools_core.internal_tools.nl_models import NLInput
+from agents.tools_core.internal_tools.tests.common_fixtures import (
+    SimpleInput,
+    SimpleTool,
+)
 from agents.tools_core.internal_tools.tool_input_parser import (
     ParseResult,
     ParseToolInput,

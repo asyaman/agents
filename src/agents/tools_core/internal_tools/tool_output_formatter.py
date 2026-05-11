@@ -26,8 +26,8 @@ from pydantic import BaseModel
 from agents.configs import get_tools_core_template_module
 from agents.llm_core.llm_client import LLMClient
 from agents.tools_core.base_tool import BaseTool
-from agents.tools_core.llm_base_tool import LLMTool
 from agents.tools_core.internal_tools.nl_models import LLMError, NLOutput
+from agents.tools_core.llm_base_tool import LLMTool
 
 # Type variables for tool input/output
 ToolInputT = t.TypeVar("ToolInputT", bound=BaseModel)

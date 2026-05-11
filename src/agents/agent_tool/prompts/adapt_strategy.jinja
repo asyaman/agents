@@ -22,7 +22,7 @@ Available tools: {{ tool_names | join(', ') }}
 
 The direct approach has encountered difficulties: **{{ failure_reason }}**
 
-Your task now is to DECOMPOSE the objective into smaller, manageable subtasks that can be delegated.
+Your task now is to DECOMPOSE the objective into smaller, manageable subtasks{% if 'DELEGATE_SUBTASK' in tool_names %} that can be delegated{% endif %}.
 
 Available tools: {{ tool_names | join(', ') }}
 
@@ -33,7 +33,11 @@ Available tools: {{ tool_names | join(', ') }}
    - Are simpler than the original objective
    - Can be accomplished with the available tools
    - Together will achieve the original goal
+{% if 'DELEGATE_SUBTASK' in tool_names %}
 3. **Delegate Each Subtask**: Use `delegate_subtask` for complex subtasks that need their own planning
+{% else %}
+3. **Execute Subtasks Directly**: Address each subtask using the available action tools in turn
+{% endif %}
 
 ## Guidelines:
 - Each subtask should be self-contained with clear success criteria
@@ -42,7 +46,11 @@ Available tools: {{ tool_names | join(', ') }}
 - After subtasks complete, synthesize their results to finish the original objective
 
 ## Response:
+{% if 'DELEGATE_SUBTASK' in tool_names %}
 Call the appropriate tools to execute your decomposition plan. Use `delegate_subtask` for each major subtask that requires independent reasoning and tool usage.
+{% else %}
+Call the appropriate action tools in sequence to execute your decomposition plan.
+{% endif %}
 {% endmacro %}
 
 {% macro synthesis_prompt(subtask_results) %}

@@ -54,13 +54,21 @@ Based on the failures and insights gathered, break this objective into smaller s
 3. Together will complete the original objective
 
 ## Guidelines:
-- Use `delegate_subtask` for each major subtask
+{% if 'DELEGATE_SUBTASK' in tool_names %}
+- Use `delegate_subtask` for each major subtask that needs independent reasoning
+{% else %}
+- Address each subtask using the available action tools in turn
+{% endif %}
 - Each subtask should be simpler than the original objective
 - Include relevant context and learnings from failures
 - Consider parallel vs sequential subtask execution
 
 ## Action:
+{% if 'DELEGATE_SUBTASK' in tool_names %}
 Call `delegate_subtask` for each subtask, or call appropriate tools to implement your decomposition plan.
+{% else %}
+Call the appropriate action tools in sequence to implement your decomposition plan.
+{% endif %}
 {% endmacro %}
 
 {% macro synthesis_prompt(subtask_results, insights) %}

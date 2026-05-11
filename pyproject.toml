@@ -53,3 +53,26 @@ markers = [
     "integration: integration tests requiring external services",
 ]
 addopts = "-v --tb=short"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "F",  # pyflakes — real bugs: undefined names, unused imports/vars
+    "B",  # flake8-bugbear — real bug patterns: mutable defaults, broad except, etc.
+    "I",  # isort — import sorting (stdlib / third-party / first-party)
+]
+ignore = [
+    "B028",  # flake8-bugbear: "Found mutable module-level variable."
+    "B904",  # flake8-bugbear: "Found a function call in an f-string."
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["agents"]
+combine-as-imports = true
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

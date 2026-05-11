@@ -10,15 +10,15 @@ from agents.agent_tool.agent_tool import (
     AgentToolOutput,
     create_finish_tool,
 )
-from agents.agent_tool.base_strategy import StrategyOutput, PlanningStrategy
+from agents.agent_tool.base_strategy import PlanningStrategy, StrategyOutput
 from agents.agent_tool.direct_strategy import DirectStrategy
-from agents.llm_core.llm_client import ToolCall
 from agents.agent_tool.tests.common_fixtures import (
-    SearchTool,
+    CalculatorInput,
     CalculatorTool,
     SearchInput,
-    CalculatorInput,
+    SearchTool,
 )
+from agents.llm_core.llm_client import ToolCall
 
 
 class MockStrategy(PlanningStrategy):
@@ -28,7 +28,9 @@ class MockStrategy(PlanningStrategy):
         self.outputs = outputs
         self.call_count = 0
 
-    async def plan(self, messages, tools, parallel_tool_calls=True) -> StrategyOutput:
+    async def plan(
+        self, messages, tools, parallel_tool_calls=True, plan_state=None
+    ) -> StrategyOutput:
         output = self.outputs[self.call_count]
         self.call_count += 1
         return output
@@ -100,15 +102,67 @@ class TestAgentTool:
         # Should have search_tool + auto-added finish tool
         assert len(agent.tools) == 2
 
-    def test_init_without_finish_tool(
+    def test_finish_tool_always_included(
         self, mock_llm_client: MagicMock, search_tool: SearchTool
     ):
+        """The finish meta tool is always added — it's the universal
+        termination signal. No opt-out flag exists."""
         agent = AgentTool(
             tools=[search_tool],
             strategy=DirectStrategy(llm_client=mock_llm_client),
-            include_finish_tool=False,
         )
-        assert len(agent.tools) == 1
+        # search_tool + auto-added finish
+        assert len(agent.tools) == 2
+        assert any(t.name.upper() == "FINISH" for t in agent.tools)
+
+    def test_init_without_planstate_update_tool(
+        self, mock_llm_client: MagicMock, search_tool: SearchTool
+    ):
+        """planstate_update is the only optional meta tool. When disabled,
+        the static tool list is unchanged but finish is still present."""
+        agent = AgentTool(
+            tools=[search_tool],
+            strategy=DirectStrategy(llm_client=mock_llm_client),
+            include_planstate_update_tool=False,
+        )
+        # search_tool + finish (no planstate_update in static list either —
+        # planstate_update is added per-run in ainvoke when enabled).
+        assert len(agent.tools) == 2
+        assert any(t.name.upper() == "FINISH" for t in agent.tools)
+        assert agent._include_planstate_update_tool is False
+
+    @pytest.mark.asyncio
+    async def test_finish_detection_runs_in_agent_tool_not_strategy(
+        self, search_tool: SearchTool
+    ):
+        """Strategy passes finish through in tool_calls; AgentTool detects it
+        and terminates with args from finish.arguments."""
+        from agents.agent_tool.agent_tool import FinishInput
+
+        finish_args = {"result": "all done", "success": True}
+        strategy = MockStrategy(
+            outputs=[
+                StrategyOutput(
+                    tool_calls=[
+                        ToolCall(
+                            tool_name="finish",
+                            arguments=finish_args,
+                            id="f1",
+                            parsed=FinishInput(**finish_args),
+                        )
+                    ],
+                    # No `finished`/`success`/`result` set on StrategyOutput —
+                    # AgentTool extracts them from finish's args.
+                ),
+            ]
+        )
+
+        agent = AgentTool(tools=[search_tool], strategy=strategy)
+        result = await agent.ainvoke(AgentToolInput(objective="task"))
+
+        assert result.success is True
+        assert result.result == "all done"
+        assert result.iterations_used == 1
 
     @pytest.mark.asyncio
     async def test_agent_loop_finishes_on_first_iteration(
@@ -116,7 +170,7 @@ class TestAgentTool:
     ):
         """Test that agent finishes when strategy returns finished=True."""
         strategy = MockStrategy(
-            outputs=[StrategyOutput(finished=True, result="Immediate result")]
+            outputs=[StrategyOutput(tool_calls=[], result="Immediate result")]
         )
 
         agent = AgentTool(
@@ -136,7 +190,7 @@ class TestAgentTool:
     ):
         """Test that agent propagates success=False from strategy."""
         strategy = MockStrategy(
-            outputs=[StrategyOutput(finished=True, success=False, result="Task failed")]
+            outputs=[StrategyOutput(tool_calls=[], success=False, result="Task failed")]
         )
 
         agent = AgentTool(
@@ -169,7 +223,7 @@ class TestAgentTool:
                     ]
                 ),
                 # Second iteration: finish
-                StrategyOutput(finished=True, result="Found results"),
+                StrategyOutput(tool_calls=[], result="Found results"),
             ]
         )
 
@@ -239,7 +293,7 @@ class TestAgentTool:
                         )
                     ],
                 ),
-                StrategyOutput(finished=True, result="Found it"),
+                StrategyOutput(tool_calls=[], result="Found it"),
             ]
         )
 
@@ -284,7 +338,7 @@ class TestAgentTool:
                         ),
                     ]
                 ),
-                StrategyOutput(finished=True, result="Done with parallel calls"),
+                StrategyOutput(tool_calls=[], result="Done with parallel calls"),
             ]
         )
 
@@ -325,7 +379,7 @@ class TestAgentToolGuidanceMessages:
         self, search_tool: SearchTool
     ):
         """Test that guidance messages are injected as system messages."""
-        strategy = MockStrategy(outputs=[StrategyOutput(finished=True, result="Done")])
+        strategy = MockStrategy(outputs=[StrategyOutput(tool_calls=[], result="Done")])
 
         agent = AgentTool(
             tools=[search_tool],
@@ -348,7 +402,7 @@ class TestAgentToolGuidanceMessages:
     @pytest.mark.asyncio
     async def test_multiple_guidance_messages(self, search_tool: SearchTool):
         """Test that multiple guidance messages are all injected."""
-        strategy = MockStrategy(outputs=[StrategyOutput(finished=True, result="Done")])
+        strategy = MockStrategy(outputs=[StrategyOutput(tool_calls=[], result="Done")])
 
         agent = AgentTool(
             tools=[search_tool],
@@ -369,7 +423,7 @@ class TestAgentToolGuidanceMessages:
         self, search_tool: SearchTool
     ):
         """Test that guidance messages appear before the user task message."""
-        strategy = MockStrategy(outputs=[StrategyOutput(finished=True, result="Done")])
+        strategy = MockStrategy(outputs=[StrategyOutput(tool_calls=[], result="Done")])
 
         agent = AgentTool(
             tools=[search_tool],
@@ -395,7 +449,7 @@ class TestAgentToolGuidanceMessages:
     @pytest.mark.asyncio
     async def test_no_guidance_messages_by_default(self, search_tool: SearchTool):
         """Test that no extra system messages when guidance_messages is None."""
-        strategy = MockStrategy(outputs=[StrategyOutput(finished=True, result="Done")])
+        strategy = MockStrategy(outputs=[StrategyOutput(tool_calls=[], result="Done")])
 
         agent = AgentTool(
             tools=[search_tool],

@@ -6,8 +6,8 @@ import pytest
 
 from agents.agent_tool.adaptive_reflexion_strategy import AdaptiveReflexionStrategy
 from agents.agent_tool.base_strategy import StrategyOutput
-from agents.llm_core.llm_client import ToolCall, ToolCallResponse
 from agents.agent_tool.tests.common_fixtures import SearchTool
+from agents.llm_core.llm_client import ToolCall, ToolCallResponse
 
 
 class TestAdaptiveReflexionStrategy:
@@ -17,7 +17,6 @@ class TestAdaptiveReflexionStrategy:
         strategy = AdaptiveReflexionStrategy(llm_client=mock_llm_client)
         assert strategy.max_reflections == 2
         assert strategy.max_direct_attempts == 2
-        assert strategy.finish_tool_name == "finish"
 
     def test_init_custom_params(self, mock_llm_client: MagicMock):
         strategy = AdaptiveReflexionStrategy(
@@ -48,13 +47,14 @@ class TestAdaptiveReflexionStrategy:
 
         assert isinstance(result, StrategyOutput)
         assert len(result.tool_calls) == 1
-        assert not result.finished
 
     @pytest.mark.asyncio
-    async def test_plan_finish_tool_completes(
+    async def test_plan_finish_tool_passes_through(
         self, mock_llm_client: MagicMock, search_tool: SearchTool
     ):
-        """Test finish tool signals completion."""
+        """Strategy passes finish through; AgentTool detects + terminates.
+        AdaptiveReflexion still observes finish for state-tracking
+        (resetting consecutive_failures on success)."""
         strategy = AdaptiveReflexionStrategy(llm_client=mock_llm_client)
 
         mock_llm_client.agenerate.return_value = ToolCallResponse(
@@ -72,6 +72,6 @@ class TestAdaptiveReflexionStrategy:
             tools=[search_tool],
         )
 
-        assert result.finished
-        assert result.success is True
-        assert result.result == "Done"
+        assert len(result.tool_calls) == 1
+        assert result.tool_calls[0].tool_name == "finish"
+        assert result.tool_calls[0].arguments["result"] == "Done"

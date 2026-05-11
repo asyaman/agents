@@ -25,7 +25,7 @@ def create_model_from_schema(
     add_examples: bool = False,
     default_handling: DefaultHandling | None = None,
     definitions: dict[str, t.Any] | None = None,
-) -> t.Type[BaseModel]:
+) -> type[BaseModel]:
     """Create a Pydantic model from a JSON schema.
 
     This function takes a JSON schema as input and dynamically creates a Pydantic model class
@@ -118,12 +118,12 @@ def get_default(
 
 def json_schema_to_pydantic_field(
     name: str,
-    json_schema: t.Dict[str, t.Any],
-    required: t.List[str],
-    definitions: t.Dict[str, t.Any] | None,
+    json_schema: dict[str, t.Any],
+    required: list[str],
+    definitions: dict[str, t.Any] | None,
     add_examples: bool,
     default_handling: DefaultHandling | None,
-) -> t.Tuple[t.Any, dict[str, t.Any]]:
+) -> tuple[t.Any, dict[str, t.Any]]:
     description = json_schema.get("description")
     examples = json_schema.get("examples", [])
 
@@ -181,10 +181,10 @@ def json_schema_to_pydantic_field(
 def parse_type_to_pydantic_type(
     json_schema: dict[str, t.Any],
     *,
-    definitions: t.Dict[str, t.Any] | None,
+    definitions: dict[str, t.Any] | None,
     add_examples: bool,
     default_handling: DefaultHandling | None,
-    name: t.Optional[str] = None,
+    name: str | None = None,
 ) -> t.Any:
     type_ = json_schema.get("type")
     if type_ == "string":
@@ -288,7 +288,7 @@ def create_example_from_schema(
 
 def convert_type_to_sample(
     json_schema: dict[str, t.Any],
-    name: t.Optional[str] = None,
+    name: str | None = None,
 ) -> t.Any:
     """
     Generates a sample value based on a JSON schema definition.

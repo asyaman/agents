@@ -2,11 +2,11 @@
 
 from unittest.mock import MagicMock
 
-from agents.tools_core.internal_tools.tests.common_fixtures import (
-    SimpleTool,
-    SimpleInput,
-)
 from agents.tools_core.internal_tools.nl_tool import NLTool, ToolWithFormatter
+from agents.tools_core.internal_tools.tests.common_fixtures import (
+    SimpleInput,
+    SimpleTool,
+)
 
 
 class TestNLTool:

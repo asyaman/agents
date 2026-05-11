@@ -11,9 +11,9 @@ while shared mutable structures (execution_history, statistics) allow
 collecting information from all recursion levels.
 """
 
+import typing as t
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-import typing as t
 
 
 @dataclass

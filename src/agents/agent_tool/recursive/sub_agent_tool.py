@@ -8,16 +8,15 @@ This tool enables recursive agent execution where:
 - Tool selection can filter relevant tools for each sub-objective
 """
 
+import asyncio
 import typing as t
 from collections.abc import Callable
-import asyncio
 
 from loguru import logger
 from pydantic import BaseModel, Field
 
 from agents.agent_tool.agent_tool import AgentTool, AgentToolInput
 from agents.agent_tool.base_strategy import PlanningStrategy
-from agents.configs import get_agent_tool_template_module
 from agents.agent_tool.recursive.context import (
     LevelExecution,
     can_recurse,
@@ -28,6 +27,7 @@ from agents.agent_tool.recursive.context import (
     var_parent_objective,
     var_recursion_depth,
 )
+from agents.configs import get_agent_tool_template_module
 from agents.tools_core.base_tool import BaseTool
 from agents.tools_core.internal_tools.tool_selector import ToolSelector
 
@@ -209,12 +209,12 @@ class SubAgentTool(BaseTool[SubAgentInput, SubAgentOutput]):
                 current_depth + 1,
             )
 
-        # Create fresh agent (independent message history)
+        # Create fresh agent (independent message history). `finish` is
+        # always added by AgentTool.
         child_agent = AgentTool(
             tools=selected_tools,
             strategy=self.strategy_factory(),  # Fresh strategy instance!
             system_prompt=self.system_prompt,
-            include_finish_tool=True,
             parallel_tool_calls=self.parallel_tool_calls,
         )
 

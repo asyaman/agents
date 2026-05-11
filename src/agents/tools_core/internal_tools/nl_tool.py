@@ -20,9 +20,9 @@ from pydantic import BaseModel, Field
 
 from agents.llm_core.llm_client import LLMClient
 from agents.tools_core.base_tool import BaseTool
-from agents.tools_core.internal_tools.tool_output_formatter import FormatToolOutput
 from agents.tools_core.internal_tools.nl_models import LLMError, NLInput, NLOutput
 from agents.tools_core.internal_tools.tool_input_parser import ParseToolInput
+from agents.tools_core.internal_tools.tool_output_formatter import FormatToolOutput
 
 # Type variables for tool input/output
 ToolInputT = t.TypeVar("ToolInputT", bound=BaseModel)

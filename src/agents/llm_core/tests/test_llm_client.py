@@ -307,6 +307,60 @@ class TestToolCallingMode:
 
         assert len(response.tool_calls) == 2
 
+    def test_invalid_tool_arguments_surface_as_parse_error(
+        self, llm_client: LLMClient, mock_client: Mock, tool_schema: TestToolSchema
+    ):
+        """Validation failures must NOT raise — they're attached as parse_error
+        so the agent loop can feed them back to the model as tool result errors."""
+        # Wrong shape: query field missing, extra unknown field
+        mock_client.chat.completions.create.return_value = _make_tool_completion(
+            [("call_1", "ToolSchema", {"unknown_field": "value"})]
+        )
+
+        with pytest.warns(RuntimeWarning, match="invalid arguments"):
+            response = llm_client.generate(
+                messages=[{"role": "user", "content": "Hi"}],
+                mode="tool_calling",
+                tools=[tool_schema],
+            )
+
+        assert isinstance(response, ToolCallResponse)
+        assert len(response.tool_calls) == 1
+        tc = response.tool_calls[0]
+        assert tc.tool_name == "ToolSchema"
+        assert tc.parsed is None
+        assert tc.parse_error is not None
+        assert "query" in tc.parse_error  # error mentions the missing field
+
+    def test_mixed_valid_and_invalid_tool_calls(
+        self, llm_client: LLMClient, mock_client: Mock, tool_schema: TestToolSchema
+    ):
+        """When some tool calls validate and others fail, all are returned —
+        valid ones with parsed set, invalid ones with parse_error set."""
+        mock_client.chat.completions.create.return_value = _make_tool_completion(
+            [
+                ("call_1", "ToolSchema", {"query": "valid"}),
+                ("call_2", "ToolSchema", {"unknown_field": "x"}),  # invalid
+            ]
+        )
+
+        with pytest.warns(RuntimeWarning):
+            response = llm_client.generate(
+                messages=[{"role": "user", "content": "Hi"}],
+                mode="tool_calling",
+                tools=[tool_schema],
+                parallel_tool_calls=True,
+            )
+
+        assert len(response.tool_calls) == 2
+        # First call validated successfully
+        assert response.tool_calls[0].parsed is not None
+        assert response.tool_calls[0].parsed.query == "valid"
+        assert response.tool_calls[0].parse_error is None
+        # Second call has parse_error set
+        assert response.tool_calls[1].parsed is None
+        assert response.tool_calls[1].parse_error is not None
+
 
 class TestOllamaCompatibility:
     def test_ollama_detected_from_api_key(self):

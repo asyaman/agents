@@ -24,6 +24,7 @@ from loguru import logger
 from openai.types.chat import ChatCompletionMessageParam
 
 from agents.agent_tool.base_strategy import PlanningStrategy, StrategyOutput
+from agents.agent_tool.plan_state import PlanState
 from agents.agent_tool.reflexion_strategy import ReflectionInsight, ReflexionMemory
 from agents.configs import get_agent_tool_template_module
 from agents.llm_core.llm_client import LLMClient
@@ -114,7 +115,6 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
         max_direct_attempts: int = 2,
         max_reflections: int = 2,
         persist_insights: bool = False,
-        finish_tool_name: str = "finish",
         sub_agent_tool_name: str = "delegate_subtask",
     ):
         """
@@ -126,7 +126,6 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
             max_direct_attempts: Attempts before first reflection
             max_reflections: Max reflection cycles before decomposition
             persist_insights: Keep insights across tasks
-            finish_tool_name: Name of the finish tool
             sub_agent_tool_name: Name of the SubAgentTool
         """
         self.llm_client = llm_client
@@ -134,7 +133,6 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
         self.max_direct_attempts = max_direct_attempts
         self.max_reflections = max_reflections
         self.persist_insights = persist_insights
-        self.finish_tool_name = finish_tool_name
         self.sub_agent_tool_name = sub_agent_tool_name
 
         # State
@@ -226,9 +224,13 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
         messages: list[ChatCompletionMessageParam],
         tools: list[BaseTool[t.Any, t.Any]],
         parallel_tool_calls: bool = True,
+        plan_state: PlanState | None = None,
     ) -> StrategyOutput:
         """
         Generate next actions using combined ADaPT + Reflexion pattern.
+
+        plan_state is accepted for signature compatibility; AdaptiveReflexionStrategy
+        is plan-state-agnostic.
         """
         self._state.iteration += 1
         can_decompose = self._has_sub_agent_tool(tools)
@@ -345,8 +347,13 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
 
         result = self._process_response(response)
 
-        # Reset phase to DIRECT after successful tool selection (for next iteration)
-        if not result.finished and self._state.phase == AdaptivePhase.RETRYING:
+        # Reset phase to DIRECT after successful tool selection (for next
+        # iteration). "Not terminating" = non-empty tool_calls AND no finish
+        # in them (otherwise AgentTool will terminate).
+        is_continuing = result.tool_calls and not any(
+            tc.tool_name.upper() == "FINISH" for tc in result.tool_calls
+        )
+        if is_continuing and self._state.phase == AdaptivePhase.RETRYING:
             self._state.phase = AdaptivePhase.DIRECT
 
         return result
@@ -396,25 +403,27 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
         return self._process_response(response)
 
     def _process_response(self, response: t.Any) -> StrategyOutput:
-        """Process LLM response into StrategyOutput."""
+        """Process LLM response into StrategyOutput.
+
+        Strategy-side termination is implicit (empty tool_calls). AgentTool
+        detects `finish` in non-empty tool_calls separately. We still inspect
+        tool_calls here to track strategy-internal state (consecutive failure
+        counter) when finish is observed, but we don't terminate ourselves.
+        """
         if not response.tool_calls:
             return StrategyOutput(
-                finished=True,
+                tool_calls=[],
                 success=False,
                 result=response.finish_reason or "No tool calls returned by LLM",
             )
 
+        # Side-effect only: reset consecutive failures when the model emits
+        # a successful finish. AgentTool will terminate after executing it.
         for tc in response.tool_calls:
-            if tc.tool_name.upper() == self.finish_tool_name.upper():
-                # Reset consecutive failures on successful finish
+            if tc.tool_name.upper() == "FINISH":
                 if tc.arguments.get("success", True):
                     self._state.consecutive_failures = 0
-
-                return StrategyOutput(
-                    finished=True,
-                    success=tc.arguments.get("success", True),
-                    result=tc.arguments.get("result", "Task completed"),
-                )
+                break
 
         return StrategyOutput(tool_calls=response.tool_calls)
 

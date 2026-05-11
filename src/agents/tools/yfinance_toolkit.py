@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field
 from agents.tools_core.base_tool import BaseTool
 
 
-def dict_to_string(data: t.Dict[t.Any, t.Any]) -> str:
+def dict_to_string(data: dict[t.Any, t.Any]) -> str:
     """Convert a dictionary to a newline-separated string."""
     return "\n".join([f"{key}: {value}" for key, value in data.items()])
 
@@ -215,7 +215,7 @@ class CompanyInfoTool(BaseTool[TickerInput, CompanyInfoOutput]):
 
     def invoke(self, input: TickerInput) -> CompanyInfoOutput:
         stock = yfinance.Ticker(input.ticker)
-        info: t.Dict[str, t.Any] = stock.info  # type: ignore
+        info: dict[str, t.Any] = stock.info  # type: ignore
         return CompanyInfoOutput(info=json.dumps(info))
 
     example_inputs = (TickerInput(ticker="AAPL"),)

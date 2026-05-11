@@ -19,11 +19,11 @@ from agents.tools.llm_tools.browsing import (
     BrowsingTool,
     BrowsingToolInput,
     BrowsingToolOutput,
-    NavigateOutput,
     ClickOutput,
-    GetTextOutput,
-    GetPageInfoOutput,
     FinishOutput,
+    GetPageInfoOutput,
+    GetTextOutput,
+    NavigateOutput,
     create_browser_tools,
 )
 

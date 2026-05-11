@@ -112,6 +112,37 @@ class BaseTool(ABC, t.Generic[InputT, OutputT]):
         """Original tool name without normalization."""
         return self._name
 
+    def description_with_examples(self) -> str:
+        """Return the tool description with example_inputs/example_outputs appended.
+
+        If the tool defines `example_inputs` and/or `example_outputs`, they are
+        rendered as JSON after the description so the LLM sees concrete shape
+        examples alongside the schema. If neither is set, the plain description
+        is returned unchanged.
+        """
+        ex_in = list(self.example_inputs or ())
+        ex_out = list(self.example_outputs or ())
+        if not ex_in and not ex_out:
+            return self.description
+
+        def _to_json(model_or_value: t.Any) -> str:
+            if isinstance(model_or_value, BaseModel):
+                return model_or_value.model_dump_json()
+            try:
+                import json as _json
+                return _json.dumps(model_or_value)
+            except (TypeError, ValueError):
+                return str(model_or_value)
+
+        lines = [self.description, "", "Examples:"]
+        pair_count = max(len(ex_in), len(ex_out))
+        for i in range(pair_count):
+            if i < len(ex_in):
+                lines.append(f"  input  {i + 1}: {_to_json(ex_in[i])}")
+            if i < len(ex_out):
+                lines.append(f"  output {i + 1}: {_to_json(ex_out[i])}")
+        return "\n".join(lines)
+
     def _validate_input(self, input: t.Any) -> InputT:
         """Validate that input is the correct type."""
         expected_type = self._input

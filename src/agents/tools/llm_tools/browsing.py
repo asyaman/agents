@@ -6,11 +6,11 @@ via Playwright. It supports any provider through LLMClient (OpenAI, Ollama, etc.
 """
 
 import asyncio
+
 from loguru import logger
+from openai.types.chat import ChatCompletionMessageParam
 from playwright.async_api import Page, async_playwright
 from pydantic import BaseModel, Field
-
-from openai.types.chat import ChatCompletionMessageParam
 
 from agents.llm_core.llm_client import LLMClient, ToolCallResponse
 from agents.tools_core.base_tool import BaseTool, create_fn_tool
@@ -175,7 +175,7 @@ def create_browser_tools(page: Page) -> list[BaseTool[BaseModel, BaseModel]]:
         name="finish",
         description="Call this when the task is complete to return the final result.",
     )
-    async def finish(result: str, success: bool = True) -> FinishOutput:  # noqa: ARG001
+    async def finish(result: str, success: bool = True) -> FinishOutput:
         return FinishOutput(acknowledged=True)
 
     return [navigate, click, type_text, get_text, get_page_info, finish]  # type: ignore
@@ -369,7 +369,7 @@ class BrowsingTool(BaseTool[BrowsingToolInput, BrowsingToolOutput]):
                     if tool_name.upper() == "NAVIGATE" and hasattr(
                         result, "current_url"
                     ):
-                        url = getattr(result, "current_url")
+                        url = result.current_url
                         pages_visited.append(url)
                         logger.info("Navigated to: {}", url)
 

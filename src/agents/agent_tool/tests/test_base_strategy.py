@@ -5,13 +5,17 @@ from agents.llm_core.llm_client import ToolCall
 
 
 class TestStrategyOutput:
-    """Tests for StrategyOutput model."""
+    """Tests for StrategyOutput model.
+
+    StrategyOutput now signals termination implicitly: empty tool_calls
+    means stop, non-empty means run them. The success/result fields are
+    only consulted on the empty-tool_calls path.
+    """
 
     def test_default_values(self):
         output = StrategyOutput()
         assert output.messages == []
         assert output.tool_calls == []
-        assert output.finished is False
         assert output.success is True  # Default to success
         assert output.result is None
 
@@ -22,14 +26,16 @@ class TestStrategyOutput:
         assert len(output.tool_calls) == 1
         assert output.tool_calls[0].tool_name == "search"
 
-    def test_finished_with_result(self):
-        output = StrategyOutput(finished=True, result="Task complete")
-        assert output.finished
+    def test_implicit_terminate_with_success(self):
+        """Empty tool_calls + success=True = strategy-internal terminate ok."""
+        output = StrategyOutput(tool_calls=[], success=True, result="Task complete")
+        assert output.tool_calls == []
         assert output.success is True
         assert output.result == "Task complete"
 
-    def test_finished_with_failure(self):
-        output = StrategyOutput(finished=True, success=False, result="Task failed")
-        assert output.finished
+    def test_implicit_terminate_with_failure(self):
+        """Empty tool_calls + success=False = strategy-internal terminate bad."""
+        output = StrategyOutput(tool_calls=[], success=False, result="Task failed")
+        assert output.tool_calls == []
         assert output.success is False
         assert output.result == "Task failed"

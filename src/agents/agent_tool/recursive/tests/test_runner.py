@@ -5,6 +5,7 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from agents.agent_tool.agent_tool import FinishInput
 from agents.agent_tool.base_strategy import PlanningStrategy
 from agents.agent_tool.direct_strategy import DirectStrategy
 from agents.agent_tool.recursive.context import (
@@ -296,12 +297,14 @@ class TestRecursiveAgentRunnerExecution:
         mock_llm_client: MagicMock,
     ):
         """Test handling of failed tasks."""
+        finish_args = {"result": "Could not complete", "success": False}
         mock_llm_client.agenerate.return_value = ToolCallResponse(
             tool_calls=[
                 ToolCall(
                     id="finish-1",
                     tool_name="finish",
-                    arguments={"result": "Could not complete", "success": False},
+                    arguments=finish_args,
+                    parsed=FinishInput(**finish_args),
                 )
             ]
         )

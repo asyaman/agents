@@ -4,11 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from agents.tools_core.internal_tools.tests.common_fixtures import (
-    SimpleTool,
-    SimpleOutput,
-)
 from agents.tools_core.internal_tools.nl_models import NLOutput
+from agents.tools_core.internal_tools.tests.common_fixtures import (
+    SimpleOutput,
+    SimpleTool,
+)
 from agents.tools_core.internal_tools.tool_output_formatter import (
     FormatToolOutput,
     OutputTooLargeError,

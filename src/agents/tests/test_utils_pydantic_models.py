@@ -49,7 +49,7 @@ from agents.utilities.pydantic_utils import (
         ({"anyOf": [{"type": "string"}, {"type": "integer"}]}, t.Union[str, int]),
         (
             {"anyOf": [{"type": "string"}, {"type": "integer"}, {"type": "null"}]},
-            t.Optional[t.Union[str, int]],
+            t.Optional[str | int],
         ),
         (
             {
@@ -531,7 +531,7 @@ class B(BaseModel):
 
 
 class UnionObj(BaseModel):
-    obj: t.Union[A, B]
+    obj: A | B
 
 
 def test_create_example_from_model_union():
