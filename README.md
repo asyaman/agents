@@ -98,6 +98,27 @@ asyncio.run(main())
 
 ## Development
 
+### Adding a new example agent
+
+Each example agent lives on its own branch off `main`, so per-example dependencies
+(local paths, extra libraries, sample data) don't leak into the SDK manifest. When
+starting a new agent:
+
+```bash
+git checkout main
+git checkout -b <agent_name>
+# add code under src/agents/example_agents/<agent_name>/
+# wire it up in src/agents/webapp/agent_configs/<agent_name>.py
+# register it in src/agents/webapp/agent_configs/registry.py
+# add any new deps to pyproject.toml on this branch only
+```
+
+`main` stays minimal (SDK + the two reference examples: `email_outreach` and
+`tau_bench_retail`). Existing agent branches: `rivia_user_support`,
+`reconciliation_agent`.
+
+### Running tests
+
 ```bash
 # Run tests
 pytest
