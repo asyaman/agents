@@ -9,5 +9,8 @@ wheels/
 #other
 .DS_Store
 
+# Chainlit auto-generated welcome page (regenerated on each run)
+chainlit.md
+
 # Virtual environments
 .venv
