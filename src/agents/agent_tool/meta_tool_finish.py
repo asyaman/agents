@@ -10,6 +10,19 @@ Per the meta-tool emission policy (enforced in
 own iteration — never mixed with `planstate_update`, another meta tool,
 or any action tool. Mixed turns are rejected and the model is asked to
 retry with each meta tool in its own iteration.
+
+**Pre-termination housekeeping** (enforced in `AgentTool._agent_loop`'s
+PATH 1b check): before honoring `finish`, the framework verifies that
+`plan_state` is internally consistent — every task must be in a terminal
+status (`completed` / `failed` / `cancelled`). If any task is still
+`pending`, `in_progress`, or `blocked` when `finish` is called, the
+framework rejects the FINISH by rewriting its tool-result message into a
+tool-error payload listing the offending task ids. The loop continues so
+the model can call `planstate_update` to mark each remaining task
+terminal, then re-emit `finish` on a later iteration. The rejection
+mechanism mirrors the parse-error / unknown-tool surfacing in
+`execute_single_tool`: the model reads the error from message history
+and adjusts.
 """
 
 from pydantic import BaseModel, Field

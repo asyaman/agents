@@ -264,11 +264,17 @@ class MockApprovalStrategy:
     """
     Mock approval strategy for testing.
     Simulates human behavior: first request returns retry, then random, then stop.
+
+    Uses a local `random.Random(seed)` instance so the output is deterministic
+    across runs and independent of global RNG state. Default `seed=42`; pass
+    `seed=None` to use entropy-based randomness.
     """
 
-    def __init__(self, max_retries: int = 3) -> None:
+    def __init__(self, max_retries: int = 3, seed: int | None = 42) -> None:
         self._call_count = 0
         self._max_retries = max_retries
+        self._seed = seed
+        self._rng = random.Random(seed)
 
     def __call__(self, input: HumanApprovalInput) -> HumanApprovalOutput:
         self._call_count += 1
@@ -278,7 +284,7 @@ class MockApprovalStrategy:
         elif self._call_count > self._max_retries:
             command = "stop"
         else:
-            command = random.choice(["approve", "retry"])
+            command = self._rng.choice(["approve", "retry"])
 
         draft_instructions = "Redraft more friendly" if command == "retry" else None
         print(f"Human request at attempt {self._call_count}: {command}")
@@ -288,8 +294,10 @@ class MockApprovalStrategy:
         )
 
     def reset(self) -> None:
-        """Reset the call counter."""
+        """Reset the call counter and re-seed the RNG so behavior matches a
+        fresh instance."""
         self._call_count = 0
+        self._rng = random.Random(self._seed)
 
 
 class HumanApproval(BaseTool[HumanApprovalInput, HumanApprovalOutput]):
@@ -335,6 +343,7 @@ class HumanApproval(BaseTool[HumanApprovalInput, HumanApprovalOutput]):
         approval_fn: ApprovalFn | None = None,
         async_approval_fn: AsyncApprovalFn | None = None,
         max_retries: int = 3,
+        seed: int | None = 42,
     ) -> None:
         """
         Initialize the HumanApproval tool.
@@ -343,8 +352,12 @@ class HumanApproval(BaseTool[HumanApprovalInput, HumanApprovalOutput]):
             approval_fn: Sync approval function. If None, uses MockApprovalStrategy.
             async_approval_fn: Async approval function for real human-in-the-loop.
             max_retries: Max retries for MockApprovalStrategy (only used if approval_fn is None).
+            seed: RNG seed for the default MockApprovalStrategy. Defaults to 42
+                so the mock behavior is reproducible across runs. Pass None
+                for entropy-based randomness, or any other int for a different
+                deterministic sequence.
         """
-        self._mock_strategy = MockApprovalStrategy(max_retries=max_retries)
+        self._mock_strategy = MockApprovalStrategy(max_retries=max_retries, seed=seed)
         self._approval_fn = approval_fn or self._mock_strategy
         self._async_approval_fn = async_approval_fn
 

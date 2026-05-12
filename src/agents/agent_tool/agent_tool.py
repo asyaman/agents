@@ -242,12 +242,36 @@ class AgentTool(BaseTool[AgentToolInput, AgentToolOutput]):
     ) -> AgentToolOutput:
         """Run the agent loop until task completion or max iterations.
 
-        Three coordinated termination paths:
-          1. Strategy-signaled finish (StrategyOutput.finished == True),
-             checked BEFORE tool execution.
-          2. Plan-status-driven finish (plan_state.status terminal), checked
-             AFTER tool execution.
-          3. Max iterations exhausted, returns success=False.
+        Four coordinated termination paths, checked in order each iteration:
+          1a. Strategy-internal terminate (`StrategyOutput.tool_calls == []`),
+              checked BEFORE tool execution. Typically a protocol violation
+              since `finish` is always available — surfaced as
+              `success=False` with the strategy's textual fallback as
+              `result`.
+          1b. `finish` tool was emitted and ran successfully, checked AFTER
+              tool execution. BEFORE honoring it, the framework enforces a
+              **pre-termination housekeeping check**: if `plan_state` has
+              any non-terminal tasks (`pending` / `in_progress` /
+              `blocked`), the FINISH is rejected — its tool-result message
+              is rewritten to a tool-error payload listing the offending
+              task ids, and the loop continues. The model then has a
+              chance to call `planstate_update` to mark each task terminal
+              and re-emit `finish` on a later iteration. When the check
+              passes, `plan_state.status` is synced to `"completed"` /
+              `"failed"` from `finish.arguments["success"]` and the loop
+              exits.
+          2.  Plan-status-driven finish (`plan_state.status` in
+              `{"completed", "failed"}` after `planstate_update`), checked
+              AFTER tool execution. Trusted as the model's explicit
+              terminal signal — no housekeeping check is applied
+              because the model has just authored the plan structure
+              and is responsible for its consistency.
+          3.  Max iterations exhausted — returns `success=False` with a
+              hardcoded message; `plan_state.status` is left untouched.
+
+        See the README's "Iteration anatomy → Termination matrix" for
+        the per-path detail (when checked, result source, plan_status
+        handling).
         """
 
         # Initialize messages with system prompt and task
@@ -330,22 +354,75 @@ class AgentTool(BaseTool[AgentToolInput, AgentToolOutput]):
                     None,
                 )
                 if finish_tc is not None:
-                    success_flag = finish_tc.arguments.get("success", True)
-                    # Sync plan_state.status to mirror the FINISH outcome.
-                    # The agent has terminated; leaving plan_status="active"
-                    # in the returned PlanState would be a stale read of an
-                    # in-flight run that no longer is. Task statuses are
-                    # left untouched — the model owns those.
-                    plan_state.status = "completed" if success_flag else "failed"
-                    return AgentToolOutput(
-                        result=finish_tc.arguments.get(
-                            "result", "Task completed"
-                        ),
-                        success=success_flag,
-                        iterations_used=iteration + 1,
-                        messages=t.cast(list[dict[str, t.Any]], messages),
-                        plan_state=plan_state,
-                    )
+                    # Pre-termination housekeeping check: plan_state must be
+                    # internally consistent (every task in a terminal status)
+                    # before we honor `finish`. If non-terminal tasks remain,
+                    # reject this finish by rewriting its tool-result message
+                    # to a tool-error explaining what needs cleaning up. The
+                    # model sees the error on the next iteration and can do
+                    # the housekeeping via planstate_update, then re-emit
+                    # finish on the iteration after that. Same shape as the
+                    # parse-error / unknown-tool surfacing pattern in
+                    # `execute_single_tool`.
+                    non_terminal_ids = [
+                        task.id
+                        for task in plan_state.tasks
+                        if task.status
+                        in ("pending", "in_progress", "blocked")
+                    ]
+                    if non_terminal_ids:
+                        error_msg = (
+                            "finish was rejected: plan_state has "
+                            f"{len(non_terminal_ids)} non-terminal task(s) "
+                            f"(ids={non_terminal_ids}). Call "
+                            "planstate_update first to mark each one "
+                            "appropriately — `completed` (with result from "
+                            "message history if the work was done), "
+                            "`cancelled` (if no longer reachable), or "
+                            "`failed` (if attempted and unrecoverable). "
+                            "Then re-emit `finish` on the next iteration."
+                        )
+                        # Find the FINISH tool-result message in `messages`
+                        # (just appended by Phase A) and replace its content
+                        # with the error payload so the model reads it
+                        # next turn.
+                        for msg in reversed(messages):
+                            if (
+                                msg.get("role") == "tool"
+                                and msg.get("tool_call_id") == finish_tc.id
+                            ):
+                                msg["content"] = json.dumps(
+                                    {"error": error_msg}
+                                )
+                                break
+                        logger.warning(
+                            "Pre-termination housekeeping rejected FINISH "
+                            "| non_terminal_ids={} | continuing loop",
+                            non_terminal_ids,
+                        )
+                        # Skip termination; fall through to next iteration.
+                    else:
+                        success_flag = finish_tc.arguments.get("success", True)
+                        # Sync plan_state.status to mirror the FINISH
+                        # outcome. The agent has terminated; leaving
+                        # plan_status="active" in the returned PlanState
+                        # would be a stale read of an in-flight run that no
+                        # longer is. Task statuses are already terminal at
+                        # this point (housekeeping check passed).
+                        plan_state.status = (
+                            "completed" if success_flag else "failed"
+                        )
+                        return AgentToolOutput(
+                            result=finish_tc.arguments.get(
+                                "result", "Task completed"
+                            ),
+                            success=success_flag,
+                            iterations_used=iteration + 1,
+                            messages=t.cast(
+                                list[dict[str, t.Any]], messages
+                            ),
+                            plan_state=plan_state,
+                        )
 
             # Termination path 2: model set plan_status to a terminal value
             # via planstate_update.
@@ -397,12 +474,25 @@ class AgentTool(BaseTool[AgentToolInput, AgentToolOutput]):
             have mutated plan_state. This snapshot is what auto-status-update
             will target.
           Phase C — NON-META TOOLS: run in parallel (or sequentially if
-            `parallel=False`). These are the actual work tools.
-          Phase D — AUTO-STATUS-UPDATE: if exactly ONE non-meta tool ran AND
-            the snapshot was non-empty, mark the snapshot's task
-            completed/failed and store the tool's output as its result. For
-            multi-action turns the auto-update is skipped — the model must
-            record statuses via planstate_update on the following turn.
+            `parallel=False`). Pydantic schema validation happens up-front
+            (parse_error short-circuits execution); otherwise the tool's
+            `acall` runs and its result (or error) is captured. No plan-
+            state logic here — Phase C just executes.
+          Phase D — AUTO-STATUS-UPDATE + HINT EMISSION: classify each
+            non-meta call against the in_progress snapshot (match on
+            `inputs` only — TaskState is tool-agnostic) and act:
+              * clean exact match (unique, task still available)
+                → mark task completed/failed, store result
+              * duplicate (exact match against a task already claimed
+                this turn) → append duplicate hint
+              * multi-exact (≥2 in_progress tasks exactly match) →
+                append revision hint
+              * partial overlap (no exact, ≥1 partial) → append
+                revision hint
+              * no overlap → append off-plan hint
+            Hints are appended to the corresponding tool-result message
+            so the model reads them on the next iteration and recovers
+            via `planstate_update` (never by re-dispatching).
 
         Tool result messages are appended to `messages` in the same order the
         tools were emitted by the model (matching the assistant's tool_calls
@@ -517,7 +607,6 @@ class AgentTool(BaseTool[AgentToolInput, AgentToolOutput]):
                 return (tool_call.id, tool_result, True)
 
             tool_input = tool_call.parsed
-
             logger.info(
                 "Tool call | tool={} | args={}",
                 tool_name,
@@ -580,18 +669,19 @@ class AgentTool(BaseTool[AgentToolInput, AgentToolOutput]):
                 }
             )
 
-        # PHASE D — auto-status-update.
-        # Single-tool turn: pair the one result to the one snapshot in_progress task.
-        # Parallel-batch turn (N tools, N in_progress): strict bijective pairing
-        # on (inputs) — only when cardinality matches AND every tool finds a
-        # unique matching in_progress task. Otherwise skip (current legacy
-        # behavior) so the model can record outcomes via planstate_update.
+        # PHASE D — auto-status-update + off-plan/ambiguous HINT emission.
+        # Per-tool strict matching on `inputs` against snapshot in_progress tasks:
+        #   - exactly 1 match → mark the task completed/failed (record result)
+        #   - 0 matches OR >=2 matches → emit a `[plan_state hint]` appended
+        #     to the tool message so the next iteration triggers a
+        #     planstate_update (and NOT a re-dispatch of the same tool).
         if non_meta_results:
             _auto_status_update(
                 plan_state=plan_state,
                 non_meta_calls=non_meta_calls,
                 non_meta_results=non_meta_results,
                 snapshot_in_progress_ids=snapshot_in_progress_ids,
+                messages=messages,
             )
 
         return False
@@ -602,38 +692,152 @@ def _truncate(s: str, n: int) -> str:
     return s if len(s) <= n else s[:n] + "...[truncated]"
 
 
+def _has_partial_overlap(
+    task_inputs: dict[str, t.Any], call_args: dict[str, t.Any]
+) -> bool:
+    """True iff `task_inputs` and `call_args` share at least one (key, value)
+    pair AND are NOT dict-equal. Used by Phase D to detect partial-match
+    cases (case 4) — a call whose args agree on some keys/values with a
+    task's inputs but isn't a clean equality match (extra/missing keys, or
+    differing values on the non-shared keys).
+
+    Uses element-wise comparison rather than `dict.items() & dict.items()`
+    so nested non-hashable values (lists, dicts) work.
+    """
+    if task_inputs == call_args:
+        return False
+    for k, v in task_inputs.items():
+        if k in call_args and call_args[k] == v:
+            return True
+    return False
+
+
+def _append_hint_to_tool_message(
+    messages: list[ChatCompletionMessageParam],
+    tool_call_id: str,
+    hint: str,
+) -> None:
+    """Suffix `hint` onto the tool-result message whose `tool_call_id`
+    matches. Mutates `messages` in place.
+
+    Used by Phase D to attach off-plan / duplicate / revision hints onto
+    the tool message the model reads on the next iteration.
+    """
+    for msg in reversed(messages):
+        if (
+            msg.get("role") == "tool"
+            and msg.get("tool_call_id") == tool_call_id
+        ):
+            existing = msg.get("content") or ""
+            msg["content"] = str(existing) + "\n\n" + hint
+            return
+    logger.warning(
+        "Phase D hint dropped: no tool message with tool_call_id={}",
+        tool_call_id,
+    )
+
+
+def _off_plan_hint(tool_name: str) -> str:
+    return (
+        f"[plan_state hint] Off-plan: tool '{tool_name}' executed but no "
+        f"in_progress task's `inputs` overlap these args. Plan state was "
+        f"NOT updated. On the next iteration, call planstate_update to "
+        f"add a matching task (or amend an existing one) if this work "
+        f"should be tracked. Do NOT re-dispatch the tool: its result is "
+        f"in the message above and re-running would duplicate the side "
+        f"effect."
+    )
+
+
+def _duplicate_hint(tool_name: str, task_id: int) -> str:
+    return (
+        f"[plan_state hint] Duplicate dispatch: tool '{tool_name}' was "
+        f"called again for task id={task_id}, which was already claimed "
+        f"by an earlier call in this same turn. The task is marked "
+        f"`completed` from the first call; this duplicate ran anyway, so "
+        f"the side effect happened more than once. On the next iteration, "
+        f"reconcile via planstate_update if the duplicate result needs to "
+        f"be recorded somewhere — do NOT re-dispatch."
+    )
+
+
+def _revision_hint(
+    tool_name: str, exact_ids: list[int], partial_ids: list[int]
+) -> str:
+    parts = [
+        f"[plan_state hint] Plan needs revision: tool '{tool_name}'"
+    ]
+    if exact_ids:
+        parts.append(
+            f" exactly matches {len(exact_ids)} in_progress task(s) "
+            f"(ids={exact_ids}) that share identical `inputs` — the "
+            f"framework cannot pick one task to record this result into."
+        )
+    if partial_ids:
+        if exact_ids:
+            parts.append(" Additionally, it")
+        parts.append(
+            f" partially overlaps in_progress task(s) (ids={partial_ids})"
+            f" — some keys/values agree but the call's args are not "
+            f"dict-equal to any task's `inputs`."
+        )
+    parts.append(
+        " Plan state was NOT updated. On the next iteration, call "
+        "planstate_update: mark `completed` for the task this dispatch "
+        "served (using the result from the message above), and "
+        "cancel/recreate the others — or amend the plan so a single task "
+        "exactly matches. Do NOT re-dispatch."
+    )
+    return "".join(parts)
+
+
 def _auto_status_update(
     plan_state: PlanState,
     non_meta_calls: list[ToolCall],
     non_meta_results: list[tuple[str, str, bool]],
     snapshot_in_progress_ids: list[int],
+    messages: list[ChatCompletionMessageParam],
 ) -> None:
-    """Phase D: write tool outcomes back into the matching plan_state tasks.
+    """Phase D: pair tool results to in_progress tasks; record clean
+    matches and emit hints for everything else.
 
-    Plan-state is the driver: only tool results that have a UNIQUELY
-    matching in_progress task (by exact `inputs` equality) update plan_state.
-    Anything else is left to the message history.
+    Plan-state is the driver: only tool results with a UNIQUELY matching
+    in_progress task (by exact `inputs` equality) update plan_state.
+    TaskState is intentionally tool-agnostic — match is on `inputs` only,
+    not tool name.
 
-    Per-pair semantics (applied uniformly to single-tool and parallel turns):
+    Per-call classification against the ORIGINAL in_progress snapshot:
 
-    - For each tool result, look for in_progress snapshot tasks whose
-      `inputs` exactly equal the call's args.
-    - **Exactly one match** → mark that task `completed`/`failed` and copy
-      the (truncated) tool result into `task.result`.
-    - **Zero matches** → skip this tool (its result lives in `messages`
-      only). The model can choose whether to register it later.
-    - **More than one match** → skip this tool (ambiguous); avoid silent
-      mispair. The model will see the duplicate-inputs plan and can
-      resolve via planstate_update.
-    - **Tasks without a matching tool** stay `in_progress` — the next
-      iteration has another shot at dispatching them.
+    - **Case 5 — clean exact**: exactly one task exactly matches AND that
+      task is still available (not yet claimed by an earlier call this
+      turn). → mark `completed`/`failed`, store result. No hint.
+    - **Case 2 — duplicate**: exactly one task exactly matches BUT that
+      task was already claimed earlier in this same turn. → no further
+      plan_state mutation (the first call's pairing already completed
+      it); append a duplicate hint to this tool's message.
+    - **Case 3 — multi-exact**: ≥2 distinct in_progress tasks exactly
+      match these args (plan has duplicate `inputs`). → no plan_state
+      mutation; append a revision hint listing the matching ids.
+    - **Case 4 — partial overlap**: 0 exact matches, but at least one
+      in_progress task shares a (key, value) pair with the call's args.
+      → no plan_state mutation; append a revision hint listing the
+      partial-match ids.
+    - **Case 1 — no match**: 0 exact and 0 partial. → no plan_state
+      mutation; append an off-plan hint.
 
-    Single-tool legacy fallback: if exactly one tool ran AND no unique
-    inputs-match was found AND exactly one in_progress task exists, pair
-    the tool to that task regardless of inputs (preserves the legacy
-    behavior where the model didn't bother specifying `inputs` on tasks).
+    Cases 3 and 4 share a single "revision" hint format — the model's
+    recovery action is identical (call `planstate_update` to disambiguate
+    or revise). The hint includes both exact and partial id lists when
+    relevant.
 
-    Logs each pairing decision so skips are diagnosable.
+    Hints are emitted onto the tool-result message identified by
+    `tool_call_id`, so the model sees them on the next iteration. This
+    keeps reconciliation cheap: the model reads plan_state as ground
+    truth and the hint as guidance, and recovers via `planstate_update`
+    rather than re-dispatching the tool.
+
+    Skipped entirely when `plan_state.tasks` is empty (single-step "no
+    plan" mode where no plan-state contract exists).
     """
     if not non_meta_results:
         return
@@ -643,21 +847,19 @@ def _auto_status_update(
         for t in plan_state.tasks
         if t.id in snapshot_in_progress_ids and t.status == "in_progress"
     }
-    if not snapshot_tasks_by_id:
-        return
 
     calls_by_id = {tc.id: tc for tc in non_meta_calls}
-    available = dict(snapshot_tasks_by_id)  # task_id -> task; pop on match
+    available: dict[int, TaskState] = dict(snapshot_tasks_by_id)
     pairings: list[tuple[TaskState, str, bool]] = []
-    is_single_tool = len(non_meta_results) == 1
 
     for tc_id, result_str, is_error in non_meta_results:
         tc = calls_by_id.get(tc_id)
         if tc is None:
-            logger.debug("Auto-pair: missing tool call id={}; skipping", tc_id)
+            logger.debug("Phase D: missing tool call id={}; skipping", tc_id)
             continue
+        tool_name = tc.tool_name
 
-        # Resolve call args to a dict for inputs equality.
+        # Resolve call args to a dict for inputs comparison.
         call_args: dict[str, t.Any] | None
         if isinstance(tc.arguments, dict):
             call_args = tc.arguments
@@ -666,49 +868,80 @@ def _auto_status_update(
                 call_args = json.loads(tc.arguments) if tc.arguments else None
             except (json.JSONDecodeError, TypeError):
                 call_args = None
-
-        # Try strict inputs match first.
-        if isinstance(call_args, dict):
-            matches = [
-                task
-                for task in available.values()
-                if task.inputs is not None and task.inputs == call_args
-            ]
-            if len(matches) == 1:
-                task = matches[0]
-                del available[task.id]
-                pairings.append((task, result_str, is_error))
-                continue
-            if len(matches) > 1:
-                logger.debug(
-                    "Auto-pair: ambiguous match (>1 in_progress task with"
-                    " inputs={}) for tool {}; skipping this tool",
-                    call_args,
-                    tc.tool_name,
-                )
-                continue
-
-        # No inputs match. Single-tool legacy fallback: if exactly one
-        # in_progress task remains available, pair to it.
-        if is_single_tool and len(available) == 1:
-            task = next(iter(available.values()))
-            del available[task.id]
-            pairings.append((task, result_str, is_error))
+        if not isinstance(call_args, dict):
             logger.debug(
-                "Auto-update: single-tool fallback paired to task {} "
-                "(no inputs match)",
-                task.id,
+                "Phase D: tool {} args not a dict; skipping", tool_name
             )
             continue
 
-        logger.debug(
-            "Auto-pair: no matching task for tool {} (args={}); skipping"
-            " (result in messages only)",
-            tc.tool_name,
+        # Single-step "no plan" mode: skip plan-state contract entirely.
+        if not plan_state.tasks:
+            continue
+
+        # Classify against the ORIGINAL snapshot so duplicates are
+        # detectable (the `available` map gets consumed as cases 5 fire).
+        exact_in_snapshot = [
+            task
+            for task in snapshot_tasks_by_id.values()
+            if task.inputs is not None and task.inputs == call_args
+        ]
+        partial_in_snapshot = [
+            task
+            for task in snapshot_tasks_by_id.values()
+            if task.inputs is not None
+            and _has_partial_overlap(task.inputs, call_args)
+        ]
+
+        if len(exact_in_snapshot) == 1:
+            task = exact_in_snapshot[0]
+            if task.id in available:
+                # Case 5: clean exact match
+                del available[task.id]
+                pairings.append((task, result_str, is_error))
+                continue
+            # Case 2: duplicate dispatch
+            hint = _duplicate_hint(tool_name, task.id)
+            _append_hint_to_tool_message(messages, tc_id, hint)
+            logger.info(
+                "Phase D hint (duplicate) | tool={} | task_id={}",
+                tool_name,
+                task.id,
+            )
+            continue
+        if len(exact_in_snapshot) >= 2:
+            # Case 3: multi-exact — combined revision hint
+            exact_ids = [t.id for t in exact_in_snapshot]
+            hint = _revision_hint(tool_name, exact_ids, partial_ids=[])
+            _append_hint_to_tool_message(messages, tc_id, hint)
+            logger.info(
+                "Phase D hint (multi-exact) | tool={} | exact_ids={}",
+                tool_name,
+                exact_ids,
+            )
+            continue
+        if partial_in_snapshot:
+            # Case 4: partial overlap — combined revision hint
+            partial_ids = [t.id for t in partial_in_snapshot]
+            hint = _revision_hint(tool_name, exact_ids=[], partial_ids=partial_ids)
+            _append_hint_to_tool_message(messages, tc_id, hint)
+            logger.info(
+                "Phase D hint (partial overlap) | tool={} | partial_ids={}",
+                tool_name,
+                partial_ids,
+            )
+            continue
+        # Case 1: no overlap at all → off-plan
+        hint = _off_plan_hint(tool_name)
+        _append_hint_to_tool_message(messages, tc_id, hint)
+        logger.info(
+            "Phase D hint (off-plan, no match) | tool={} | args={} | "
+            "in_progress_ids={}",
+            tool_name,
             call_args,
+            list(snapshot_tasks_by_id.keys()),
         )
 
-    # Apply matched updates. Unmatched tasks stay in_progress for retry.
+    # Apply matched updates (case 5). Unmatched tasks stay in_progress.
     for task, result_str, is_error in pairings:
         new_status = "failed" if is_error else "completed"
         task.status = new_status
@@ -722,7 +955,7 @@ def _auto_status_update(
 
     if available:
         logger.debug(
-            "Auto-pair: {} task(s) remain in_progress (unmatched, will be"
+            "Phase D: {} task(s) remain in_progress (unmatched, will be"
             " retried next iter): ids={}",
             len(available),
             list(available.keys()),

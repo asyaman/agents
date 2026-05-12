@@ -563,7 +563,7 @@ class TestNoAutoAdvance:
         next pending task must stay pending — auto-advance was removed."""
         tasks = [
             TaskState(
-                id=1, objective="search", inputs={"q": "x"}, status="in_progress"
+                id=1, objective="search", inputs={"query": "x"}, status="in_progress"
             ),
             TaskState(
                 id=2, objective="next", status="pending", depends_on=[1]
@@ -603,6 +603,339 @@ class TestNoAutoAdvance:
         # Task 2 stays pending — no auto-advance.
         assert result.plan_state.tasks[1].status == "pending"
         assert result.plan_state.in_progress_task() is None
+
+
+class TestPhaseDHints:
+    """Phase D emits `[plan_state hint]` messages for off-plan, duplicate,
+    and partial/ambiguous tool dispatches. Hints are appended onto the
+    corresponding tool-result message so the model sees them on the next
+    iteration.
+
+    Five cases (per-call classification against the original in_progress
+    snapshot):
+      5. clean exact (unique exact match, task still available)
+         → mark completed; no hint
+      2. duplicate (exact match but task already claimed this turn)
+         → first call completes the task; second call gets duplicate hint
+      3. multi-exact (≥2 distinct tasks exactly match)
+         → revision hint
+      4. partial overlap (no exact, ≥1 partial match)
+         → revision hint
+      1. no overlap at all → off-plan hint
+    """
+
+    @staticmethod
+    def _hint_messages(messages: list[dict]) -> list[dict]:
+        return [
+            m
+            for m in messages
+            if m.get("role") == "tool"
+            and "[plan_state hint]" in str(m.get("content", ""))
+        ]
+
+    @pytest.mark.asyncio
+    async def test_case_5_clean_exact_match_no_hint(
+        self, search_tool: SearchTool
+    ):
+        """Case 5 — unique exact match against an available task → task
+        marked completed; no hint emitted."""
+        tasks = [
+            TaskState(
+                id=1,
+                objective="search",
+                inputs={"query": "x"},
+                status="in_progress",
+            )
+        ]
+        update_input = PlanStateUpdateInput(tasks=tasks)
+        strategy = _ScriptedStrategy(
+            [
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "planstate_update",
+                            update_input.model_dump(),
+                            update_input,
+                            "u1",
+                        )
+                    ]
+                ),
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "search",
+                            {"query": "x"},
+                            SearchInput(query="x"),
+                            "s1",
+                        )
+                    ]
+                ),
+                StrategyOutput(tool_calls=[], result="done"),
+            ]
+        )
+        agent = AgentTool(tools=[search_tool], strategy=strategy)
+        result = await agent.ainvoke(AgentToolInput(objective="goal"))
+
+        assert self._hint_messages(result.messages) == []
+        assert result.plan_state.tasks[0].status == "completed"
+
+    @pytest.mark.asyncio
+    async def test_case_1_no_overlap_off_plan_hint(
+        self, search_tool: SearchTool
+    ):
+        """Case 1 — call args share NOTHING with any in_progress task's
+        inputs (different key) → off-plan hint, plan_state untouched."""
+        tasks = [
+            TaskState(
+                id=1,
+                objective="t",
+                inputs={"unrelated_field": "foo"},
+                status="in_progress",
+            )
+        ]
+        update_input = PlanStateUpdateInput(tasks=tasks)
+        strategy = _ScriptedStrategy(
+            [
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "planstate_update",
+                            update_input.model_dump(),
+                            update_input,
+                            "u1",
+                        )
+                    ]
+                ),
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "search",
+                            {"query": "bar"},
+                            SearchInput(query="bar"),
+                            "s1",
+                        )
+                    ]
+                ),
+                StrategyOutput(tool_calls=[], result="done"),
+            ]
+        )
+        agent = AgentTool(tools=[search_tool], strategy=strategy)
+        result = await agent.ainvoke(AgentToolInput(objective="goal"))
+
+        hint_msgs = self._hint_messages(result.messages)
+        assert len(hint_msgs) == 1
+        content = str(hint_msgs[0]["content"])
+        assert "Off-plan" in content
+        assert "Result for: bar" in content  # tool actually ran
+        assert result.plan_state.tasks[0].status == "in_progress"
+
+    @pytest.mark.asyncio
+    async def test_case_2_duplicate_dispatch(
+        self, search_tool: SearchTool
+    ):
+        """Case 2 — two parallel tool calls share the same args; both
+        exactly match a single in_progress task. The first call claims
+        the task and marks it completed; the second call gets a
+        duplicate hint."""
+        tasks = [
+            TaskState(
+                id=1,
+                objective="t",
+                inputs={"query": "x"},
+                status="in_progress",
+            )
+        ]
+        update_input = PlanStateUpdateInput(tasks=tasks)
+        strategy = _ScriptedStrategy(
+            [
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "planstate_update",
+                            update_input.model_dump(),
+                            update_input,
+                            "u1",
+                        )
+                    ]
+                ),
+                # Two parallel SEARCH(q="x") calls, both targeting T1.
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "search",
+                            {"query": "x"},
+                            SearchInput(query="x"),
+                            "s1",
+                        ),
+                        _tc(
+                            "search",
+                            {"query": "x"},
+                            SearchInput(query="x"),
+                            "s2",
+                        ),
+                    ]
+                ),
+                StrategyOutput(tool_calls=[], result="done"),
+            ]
+        )
+        agent = AgentTool(tools=[search_tool], strategy=strategy)
+        result = await agent.ainvoke(AgentToolInput(objective="goal"))
+
+        # First call records into T1 (case 5); T1 is completed.
+        assert result.plan_state.tasks[0].status == "completed"
+        # Exactly one duplicate hint — on the second tool message.
+        hint_msgs = self._hint_messages(result.messages)
+        assert len(hint_msgs) == 1
+        content = str(hint_msgs[0]["content"])
+        assert "Duplicate dispatch" in content
+        assert "task id=1" in content
+        # The hinted message is the SECOND call (s2), not the first.
+        assert hint_msgs[0]["tool_call_id"] == "s2"
+
+    @pytest.mark.asyncio
+    async def test_case_3_multi_exact_revision_hint(
+        self, search_tool: SearchTool
+    ):
+        """Case 3 — one tool call exactly matches ≥2 in_progress tasks
+        (plan has duplicate inputs) → revision hint listing exact ids,
+        plan_state untouched."""
+        tasks = [
+            TaskState(
+                id=1,
+                objective="t1",
+                inputs={"query": "same"},
+                status="in_progress",
+            ),
+            TaskState(
+                id=2,
+                objective="t2",
+                inputs={"query": "same"},
+                status="in_progress",
+            ),
+        ]
+        update_input = PlanStateUpdateInput(tasks=tasks)
+        strategy = _ScriptedStrategy(
+            [
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "planstate_update",
+                            update_input.model_dump(),
+                            update_input,
+                            "u1",
+                        )
+                    ]
+                ),
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "search",
+                            {"query": "same"},
+                            SearchInput(query="same"),
+                            "s1",
+                        )
+                    ]
+                ),
+                StrategyOutput(tool_calls=[], result="done"),
+            ]
+        )
+        agent = AgentTool(tools=[search_tool], strategy=strategy)
+        result = await agent.ainvoke(AgentToolInput(objective="goal"))
+
+        hint_msgs = self._hint_messages(result.messages)
+        assert len(hint_msgs) == 1
+        content = str(hint_msgs[0]["content"])
+        assert "Plan needs revision" in content
+        assert "exactly matches 2" in content
+        assert "[1, 2]" in content
+        for t in result.plan_state.tasks:
+            assert t.status == "in_progress"
+
+    @pytest.mark.asyncio
+    async def test_case_4_partial_overlap_revision_hint(
+        self, calculator_tool
+    ):
+        """Case 4 — call args partially overlap a task's inputs (some
+        keys/values agree, others don't) → revision hint listing partial
+        ids, plan_state untouched.
+
+        Setup: task has inputs={"expression":"1+1","extra":"k"}; call
+        passes only {"expression":"1+1"}. Shared (expression, "1+1") so
+        they partially overlap, but inputs are not dict-equal.
+        """
+        from agents.agent_tool.tests.common_fixtures import CalculatorInput
+
+        tasks = [
+            TaskState(
+                id=1,
+                objective="compute",
+                inputs={"expression": "1+1", "extra": "k"},
+                status="in_progress",
+            )
+        ]
+        update_input = PlanStateUpdateInput(tasks=tasks)
+        strategy = _ScriptedStrategy(
+            [
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "planstate_update",
+                            update_input.model_dump(),
+                            update_input,
+                            "u1",
+                        )
+                    ]
+                ),
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "calculator",
+                            {"expression": "1+1"},
+                            CalculatorInput(expression="1+1"),
+                            "c1",
+                        )
+                    ]
+                ),
+                StrategyOutput(tool_calls=[], result="done"),
+            ]
+        )
+        agent = AgentTool(tools=[calculator_tool], strategy=strategy)
+        result = await agent.ainvoke(AgentToolInput(objective="goal"))
+
+        hint_msgs = self._hint_messages(result.messages)
+        assert len(hint_msgs) == 1
+        content = str(hint_msgs[0]["content"])
+        assert "Plan needs revision" in content
+        assert "partially overlaps" in content
+        assert "[1]" in content
+        assert result.plan_state.tasks[0].status == "in_progress"
+
+    @pytest.mark.asyncio
+    async def test_single_step_no_plan_no_hint(
+        self, search_tool: SearchTool
+    ):
+        """Single-step "no plan" mode (plan_state.tasks empty) → Phase D
+        skips the contract; no hint."""
+        strategy = _ScriptedStrategy(
+            [
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "search",
+                            {"query": "x"},
+                            SearchInput(query="x"),
+                            "s1",
+                        )
+                    ]
+                ),
+                StrategyOutput(tool_calls=[], result="done"),
+            ]
+        )
+        agent = AgentTool(tools=[search_tool], strategy=strategy)
+        result = await agent.ainvoke(AgentToolInput(objective="goal"))
+
+        assert self._hint_messages(result.messages) == []
+        assert result.plan_state.tasks == []
 
 
 class TestSummarizePlanResult:
@@ -705,14 +1038,92 @@ class TestMetaToolPolicyGuard:
         self, search_tool: SearchTool
     ):
         """FINISH(success=False) must set plan_state.status='failed' so the
-        returned PlanState reflects the run's terminal outcome — even when
-        plan_status was 'active' (mid-run) at the moment FINISH was called."""
-        tasks = [
+        returned PlanState reflects the run's terminal outcome. This run
+        does the pre-FINISH housekeeping (marks tasks cancelled/failed)
+        first, then calls FINISH — the framework now requires all tasks
+        be terminal before FINISH is honored."""
+        # Iter 1: initial plan with one in_progress + one pending.
+        initial_tasks = [
             TaskState(id=1, objective="t", status="in_progress"),
             TaskState(id=2, objective="t2", status="pending"),
         ]
+        initial_update = PlanStateUpdateInput(tasks=initial_tasks)
+        # Iter 2: cleanup — mark both tasks cancelled (gave up before
+        # they were attempted/completed).
+        cleanup_tasks = [
+            TaskState(id=1, objective="t", status="cancelled"),
+            TaskState(id=2, objective="t2", status="cancelled"),
+        ]
+        cleanup_update = PlanStateUpdateInput(tasks=cleanup_tasks)
+        finish_args = {
+            "result": "stopped: retry budget exhausted",
+            "success": False,
+        }
+        strategy = _ScriptedStrategy(
+            [
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "planstate_update",
+                            initial_update.model_dump(),
+                            initial_update,
+                            "u1",
+                        )
+                    ]
+                ),
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "planstate_update",
+                            cleanup_update.model_dump(),
+                            cleanup_update,
+                            "u2",
+                        )
+                    ]
+                ),
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "finish",
+                            finish_args,
+                            FinishInput(**finish_args),
+                            "f1",
+                        )
+                    ]
+                ),
+            ]
+        )
+        agent = AgentTool(tools=[search_tool], strategy=strategy)
+        result = await agent.ainvoke(AgentToolInput(objective="goal"))
+        assert not result.success
+        assert result.plan_state.status == "failed"
+        # Tasks were explicitly cancelled by the cleanup update before FINISH.
+        assert result.plan_state.tasks[0].status == "cancelled"
+        assert result.plan_state.tasks[1].status == "cancelled"
+
+    @pytest.mark.asyncio
+    async def test_finish_rejected_when_non_terminal_tasks_remain(
+        self, search_tool: SearchTool
+    ):
+        """If the model emits FINISH while plan_state has non-terminal
+        tasks, the framework rejects FINISH by rewriting its tool result
+        into an error message. The loop continues so the model can do
+        the housekeeping via planstate_update on the next iteration."""
+        # Iter 1: plan with one pending task (non-terminal at FINISH time).
+        tasks = [TaskState(id=1, objective="t", status="pending")]
         update_input = PlanStateUpdateInput(tasks=tasks)
-        finish_args = {"result": "stopped: retry budget exhausted", "success": False}
+        # Iter 2: model tries to FINISH while task 1 is still pending.
+        finish_args = {"result": "premature finish", "success": True}
+        # Iter 3: cleanup + finish.
+        cleanup_tasks = [
+            TaskState(id=1, objective="t", status="cancelled"),
+        ]
+        cleanup_update = PlanStateUpdateInput(tasks=cleanup_tasks)
+        finish_args_final = {
+            "result": "done after cleanup",
+            "success": True,
+        }
+
         strategy = _ScriptedStrategy(
             [
                 StrategyOutput(
@@ -735,15 +1146,78 @@ class TestMetaToolPolicyGuard:
                         )
                     ]
                 ),
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "planstate_update",
+                            cleanup_update.model_dump(),
+                            cleanup_update,
+                            "u2",
+                        )
+                    ]
+                ),
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "finish",
+                            finish_args_final,
+                            FinishInput(**finish_args_final),
+                            "f2",
+                        )
+                    ]
+                ),
             ]
         )
         agent = AgentTool(tools=[search_tool], strategy=strategy)
         result = await agent.ainvoke(AgentToolInput(objective="goal"))
-        assert not result.success
-        assert result.plan_state.status == "failed"
-        # Task statuses are NOT auto-mutated — the model owns those.
-        assert result.plan_state.tasks[0].status == "in_progress"
-        assert result.plan_state.tasks[1].status == "pending"
+
+        # Final outcome reflects the SECOND finish (after housekeeping).
+        assert result.success
+        assert result.result == "done after cleanup"
+        assert result.iterations_used == 4
+        # The rejected first finish should have left an error tool result
+        # in the message history (under tool_call_id "f1").
+        rejected_tool_msg = next(
+            (
+                m
+                for m in result.messages
+                if m.get("role") == "tool" and m.get("tool_call_id") == "f1"
+            ),
+            None,
+        )
+        assert rejected_tool_msg is not None
+        assert "rejected" in rejected_tool_msg["content"]
+        assert "non-terminal" in rejected_tool_msg["content"]
+        # Task is cancelled after cleanup.
+        assert result.plan_state.tasks[0].status == "cancelled"
+        assert result.plan_state.status == "completed"
+
+    @pytest.mark.asyncio
+    async def test_finish_allowed_with_empty_tasks(self):
+        """If plan_state has no tasks at all (e.g., single-step run
+        without planstate_update), FINISH is allowed without housekeeping
+        — there's nothing to clean up."""
+        finish_args = {"result": "done", "success": True}
+        strategy = _ScriptedStrategy(
+            [
+                StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "finish",
+                            finish_args,
+                            FinishInput(**finish_args),
+                            "f1",
+                        )
+                    ]
+                ),
+            ]
+        )
+        agent = AgentTool(tools=[], strategy=strategy)
+        result = await agent.ainvoke(AgentToolInput(objective="goal"))
+        assert result.success
+        assert result.iterations_used == 1
+        assert result.plan_state.tasks == []
+        assert result.plan_state.status == "completed"
 
     @pytest.mark.asyncio
     async def test_planstate_update_with_action_is_blocked(
@@ -1001,18 +1475,25 @@ class TestParseErrorRecovery:
         we mark the task in_progress in iter 1 (planstate_update alone) and
         emit the broken action call in iter 2.
         """
-        # Iter 1: planstate_update alone marks task 1 in_progress
+        # Iter 1: planstate_update alone marks task 1 in_progress with
+        # inputs that match what the model will emit (broken call below
+        # has the same keys/values — semantically: model emitted args
+        # that look right structurally but the parser rejected something
+        # else, e.g., a value type mismatch). Strict pairing requires the
+        # call's args dict-equal the task's inputs.
         new_tasks = [
             TaskState(id=1, objective="t", inputs={"query": "x"},
                       status="in_progress")
         ]
         update_input = PlanStateUpdateInput(tasks=new_tasks)
 
-        # Iter 2: broken search call with parse_error
+        # Iter 2: broken search call with parse_error. The arguments
+        # match the task's inputs so Phase D's strict pairing finds the
+        # task; the parse_error path then marks it `failed`.
         broken_tc = ToolCall(
             id="b1",
             tool_name="search",
-            arguments={"bad": "x"},
+            arguments={"query": "x"},
             parsed=None,
             parse_error="validation error",
         )

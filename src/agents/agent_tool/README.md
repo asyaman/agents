@@ -10,6 +10,148 @@ AgentTool runs an agentic loop:
 3. Results added to message history
 4. Repeat until task complete or max iterations
 
+## Iteration anatomy
+
+The full per-iteration shape, with explicit before/after of the
+`strategy.plan()` call. Three pieces of state live across the loop and
+have different ownership rules:
+
+- **`messages`** — the durable conversation history. Owned by `AgentTool`;
+  the strategy returns a per-turn delta that `AgentTool` appends.
+- **`plan_state`** — the durable structured plan (tasks, statuses,
+  results). Owned by `AgentTool`; mutated by the `planstate_update` tool
+  (model-driven) and by `_execute_tool_calls`'s auto-status-update
+  (framework-driven). Strategies receive it by reference, read it, and
+  generally do not mutate it directly (ReactStrategy's auto-translate
+  step is the exception — it runs `planstate_update` programmatically).
+- **`StrategyOutput`** — transient, per-turn. Strategy produces; AgentTool
+  consumes immediately.
+
+### Before `strategy.plan()` (once per `ainvoke`)
+
+1. **Validate input** → `AgentToolInput { objective, context, max_iterations }`.
+2. **Build per-run state**:
+   - Create fresh `plan_state = PlanState(objective=...)` (durable for the
+     whole run; sub-agents get their own).
+   - Build `run_tools = self.tools + [PlanStateUpdate(plan_state)]` so the
+     meta tool closes over *this* run's `plan_state`. `FINISH` is already
+     in `self.tools` (always added; no opt-out).
+3. **Seed `messages`**:
+   - System prompt (from `agent_tool.jinja`; lists available tools).
+   - Each `guidance_messages` entry as a system message.
+   - User message with the rendered task prompt.
+4. **Build `tool_map`**: `{tool.name.upper(): tool}` for case-insensitive dispatch.
+
+### Per iteration (the loop body)
+
+**Input** to `strategy.plan(...)`:
+
+```python
+strategy_output = await self.strategy.plan(
+    messages=messages,            # full conversation history (read-only)
+    tools=run_tools,              # action tools + FINISH + PLANSTATE_UPDATE
+    parallel_tool_calls=...,      # bool
+    plan_state=plan_state,        # by reference (read-only convention)
+)
+```
+
+The strategy does whatever LLM calls it needs internally (DirectStrategy
+= 1 call; ReactStrategy = 2–3 calls: reason → translate? → act). It does
+NOT mutate `messages` directly — mutations come back through the return.
+
+**Output** from `strategy.plan()`:
+
+```python
+StrategyOutput(
+    messages: list[ChatCompletionMessageParam] = ...,   # per-turn delta
+    tool_calls: list[ToolCall] = ...,                   # 0..N tools to run
+    success: bool = True,                               # used ONLY when tool_calls == []
+    result: str | None = None,                          # used ONLY when tool_calls == []
+)
+```
+
+### After `strategy.plan()` (still per iteration)
+
+1. **Apply message delta**: `messages.extend(strategy_output.messages)`.
+
+2. **PATH 1a check** — strategy-internal terminate. If `tool_calls == []`:
+   return `AgentToolOutput` with `success`/`result` from `StrategyOutput`,
+   sync `plan_state.status` to terminal. Loop ends.
+
+3. **Execute tool calls** via `_execute_tool_calls`:
+   - **Policy guard**: meta tools (`planstate_update`, `finish`) must be
+     emitted alone per turn; mixed turns are rejected and the model gets
+     a policy-violation error result.
+   - **Phase A**: meta tools run first (sequentially). `planstate_update`
+     mutates `plan_state` immediately. `finish`'s `acall` is a no-op
+     acknowledgment; the real effect is in PATH 1b below.
+   - **Phase B**: snapshot `plan_state.in_progress_tasks()` ids after
+     meta tools ran.
+   - **Phase C**: non-meta tools run (parallel if `parallel_tool_calls=True`).
+   - **Append tool-result messages** to `messages` in emission order
+     (preserves OpenAI's `tool_call_id` pairing).
+   - **Phase D (auto-status-update)**: for each tool result, find an
+     `in_progress` snapshot task whose `inputs` dict-equals the call's
+     args. If exactly one match → mark task `completed`/`failed` and
+     copy the truncated tool output into `task.result`. Tasks without a
+     matching tool stay `in_progress` (the next iteration is expected
+     to dispatch the right tool or re-plan). Tools without a matching
+     task have their result in `messages` only — plan_state is not
+     touched.
+   - The match rule is the same regardless of how many non-meta tools
+     ran in the turn — strict dict equality, no fuzzy fallback.
+
+4. **PATH 1b check** — `finish` was called. If any executed `tool_call`
+   has `tool_name == "FINISH"`, the framework runs a
+   **pre-termination housekeeping check** first: are any `plan_state`
+   tasks still `pending`, `in_progress`, or `blocked`?
+   - **If yes** (`plan_state` is not internally consistent): reject the
+     FINISH. The framework rewrites the FINISH tool-result message in
+     `messages` to a tool-error payload listing the offending task ids
+     and explaining the housekeeping requirement. The loop **continues**
+     to the next iteration. The model reads the error from message
+     history and is expected to call `planstate_update` to mark each
+     non-terminal task `completed` (with result from messages if the
+     work was done), `cancelled` (if no longer reachable), or `failed`
+     (if attempted and unrecoverable). Then re-emit `finish` on a
+     subsequent iteration. Same shape as the parse-error / unknown-tool
+     surfacing in `execute_single_tool`.
+   - **If no** (all tasks terminal): extract `result` and `success`
+     from `finish.arguments`, sync `plan_state.status` to `"completed"`
+     / `"failed"`, return `AgentToolOutput`. Loop ends.
+
+5. **PATH 2 check** — terminal `plan_status`. If `plan_state.status ∈
+   {"completed", "failed"}` (set via `planstate_update`): return
+   `AgentToolOutput` with `result = _summarize_plan_result(plan_state)`
+   and `success = (status == "completed")`. Loop ends.
+
+6. **Otherwise** → next iteration. `messages` and `plan_state` carry
+   forward unchanged.
+
+### After the loop ends
+
+**PATH 3 — max iterations.** Return `AgentToolOutput(result="Max
+iterations reached...", success=False, ...)`.
+
+### Termination matrix
+
+| Path | Trigger | Checked | `result` source | `plan_state.status` |
+|---|---|---|---|---|
+| 1a | `StrategyOutput.tool_calls == []` | Before tool execution | `strategy_output.result` (model text) or `_summarize_plan_result` fallback | Synced from `strategy_output.success` |
+| 1b | `FINISH` tool call executed AND `plan_state` has no non-terminal tasks (housekeeping check passed) | After tool execution | `finish.arguments["result"]` (model-authored) | Synced from `finish.arguments["success"]` |
+| 2 | `plan_status` ∈ `{completed, failed}` set via `planstate_update` | After tool execution | `_summarize_plan_result(plan_state)` (framework-derived) | Already terminal (model set it) |
+| 3 | `iteration >= max_iterations` | After loop | Hardcoded `"Max iterations reached..."` | Untouched (typically `active`) |
+
+**FINISH rejection (PATH 1b housekeeping)**: if `finish` is called while
+`plan_state` has any task in `pending` / `in_progress` / `blocked`, PATH 1b
+does NOT terminate. Instead, the framework rewrites the FINISH tool-result
+message in `messages` to a tool-error payload listing the non-terminal
+task ids, and the loop continues. The model is expected to call
+`planstate_update` to mark each remaining task `completed` /
+`cancelled` / `failed`, then re-emit `finish` on a later iteration.
+The rejection only applies to PATH 1b — PATH 2 trusts the model's
+explicit `plan_status` choice (the model just authored the plan).
+
 ## Components
 
 | File | Purpose |
@@ -72,7 +214,7 @@ agent = AgentTool(
 result = await agent.ainvoke(
     AgentToolInput(
         objective="Complex task...",
-        max_iterations=10,  # Default is 5
+        max_iterations=20,  # Default is 10
     )
 )
 print(f"Used {result.iterations_used} iterations")
@@ -101,25 +243,62 @@ Input → [LLM + Tools] → Tool Calls → Execute → Loop or Finish
 
 ### ReactStrategy
 
-Reason-Act-Observe pattern. Two-step process:
-1. Generate reasoning about what to do
-2. Select tool based on reasoning
+Reason-Act-Observe pattern with an optional plan-translation step.
+Two or three LLM calls per iteration depending on configuration:
+
+1. **Reasoning** — free-text analysis of state and prior tool results;
+   identifies the IMMEDIATE next action.
+2. **Plan translation** (optional, default ON via
+   `auto_translate_plan=True` when `planstate_update` is among the
+   tools): a focused LLM call takes the reasoning + current
+   `plan_state` and emits a `planstate_update` mirroring the reasoning's
+   intent (mark `in_progress`, add retries with `parent_attempt_id`,
+   fan out, cancel obsolete branches). The strategy invokes the
+   `planstate_update` meta tool to mutate `plan_state` in place. The
+   action phase then sees the updated plan block.
+3. **Action** — dispatches the tool(s) matching the current
+   `in_progress` task(s). When auto-translate is active,
+   `planstate_update` is removed from the action phase's tool list so
+   the action LLM focuses on real work tools (+ `finish`).
 
 ```python
 from agents.agent_tool.react_strategy import ReactStrategy
 
 strategy = ReactStrategy(
-    llm_client=client,
-    model="gpt-4o",  # Optional: override client's model
+    action_client=client,
+    # Defaults: auto_translate_plan=True; translator client/model
+    # default to the reasoning client/model.
+)
+
+# Or with auto-translate disabled (2 LLM calls per iter, model handles
+# planstate_update itself):
+strategy = ReactStrategy(
+    action_client=client,
+    auto_translate_plan=False,
 )
 ```
 
-**Execution Flow** 
+**Execution flow with auto-translate (default)**
 ```
-Input → [Reason] → Thought → [Act] → Tool Call → Execute → [Observe] → Loop
-            │                                                   │
-            └──────────────── Reasoning Context ◄───────────────┘
+Input → [Reason] → free text → [Translate] → planstate_update → [Act] → Tool Call → Execute → Loop
+                                    │
+                                    └─► mutates plan_state (in_progress, retries, cancels)
 ```
+
+Cost: 3 LLM calls per iteration. Benefit: `plan_state.tasks` stays a
+faithful structured projection of the model's reasoning — parallel
+batches, retries, replanning all encoded in the plan automatically.
+Each `auto_translate` step also retries internally (capped by
+`plan_translator_max_retries`, default 1) when the translator emits
+malformed `planstate_update` args — same "surface error and let model
+fix" pattern as `execute_single_tool`.
+
+**Execution flow without auto-translate**
+```
+Input → [Reason] → free text → [Act] → Tool Call(s) → Execute → Loop
+```
+Cost: 2 LLM calls per iteration. Model is responsible for emitting
+`planstate_update` itself when structural plan changes are needed.
 
 ### AdaptStrategy (ADaPT)
 
@@ -239,19 +418,32 @@ plan revision.
 
 ### Termination paths
 
-`AgentTool` finishes via exactly one of these per-iteration paths:
+`AgentTool` finishes via exactly one of these per-iteration paths.
+See **Iteration anatomy → Termination matrix** above for the full
+per-path detail (when checked, `result` source, plan_status handling).
 
 1. **PATH 1a — strategy-internal terminate**: `StrategyOutput.tool_calls == []`.
    The strategy decided to stop (typically because the LLM emitted no tool
-   calls). Checked BEFORE tool execution. AgentTool reads `success`/`result`
-   directly from `StrategyOutput`.
+   calls — a protocol violation since `finish` is always available).
+   Checked BEFORE tool execution. AgentTool reads `success`/`result`
+   directly from `StrategyOutput` and syncs `plan_state.status` to match.
 2. **PATH 1b — `finish` tool was called**: model emitted `finish` and the
-   policy guard didn't reject. Checked AFTER tool execution. AgentTool
-   extracts `result`/`success` from `finish`'s arguments.
+   policy guard didn't reject. Checked AFTER tool execution. Before
+   honoring termination, the framework runs the **pre-termination
+   housekeeping check** — if `plan_state` has any non-terminal tasks
+   (`pending` / `in_progress` / `blocked`), FINISH is rejected by
+   rewriting its tool-result message to a tool-error payload listing
+   the offending task ids; the loop continues so the model can do the
+   housekeeping via `planstate_update`. When the check passes, AgentTool
+   extracts `result`/`success` from `finish`'s arguments and syncs
+   `plan_state.status` to `"completed"` / `"failed"` to keep the
+   returned `PlanState` internally consistent.
 3. **PATH 2 — terminal `plan_status`**: model called `planstate_update` with
    `plan_status='completed'` or `'failed'`. Checked after tool execution.
-   AgentTool returns `success` based on whether the status is `completed`.
-4. **PATH 3 — max iterations**: fallback. Returns `success=False`.
+   AgentTool returns `success` based on whether the status is `completed`;
+   `result` is `_summarize_plan_result(plan_state)` (framework-derived).
+4. **PATH 3 — max iterations**: fallback. Returns `success=False` with a
+   hardcoded message.
 
 ### Termination paths by configuration
 
@@ -304,29 +496,99 @@ message history.
 - `depends_on`: list of task ids that must reach `completed` first
 - `parent_attempt_id`: optional pointer to a prior failed attempt
 
-### Auto-status-update
+### Phase D — auto-status-update + hint emission
 
-When exactly ONE non-meta tool call ran in a turn AND a task was
-`in_progress` when the turn started, the framework auto-marks that task
-`completed`/`failed` based on the tool's outcome and stores its output in
-the task's `result` field. Parallel multi-action turns skip this auto-update
-— the model must record outcomes via a follow-up `planstate_update`.
+After non-meta tools run, the framework classifies each call against the
+`in_progress` snapshot **by `inputs` only** (TaskState is intentionally
+tool-agnostic — `inputs` carries the materialized kwargs but the task
+does not bind to a specific tool name, so the model can plan at the
+intent level and pick a dispatcher at execution time). One of five
+cases applies per call:
 
-The framework does NOT auto-advance to the next task. After an action
-auto-completes, `plan_state` has no `in_progress` task. The model is
-expected to read the just-completed task's result, reason about it, and
-then explicitly drive the next step via `planstate_update` or `finish`.
+| # | Case | Detection | plan_state effect | Hint |
+|---|---|---|---|---|
+| 5 | Clean exact | unique exact match against an available task | task → `completed`/`failed`, result stored | — |
+| 2 | Duplicate dispatch | exact match against a task already claimed by a prior call THIS turn | first call already completed the task; no further mutation | duplicate hint |
+| 3 | Multi-exact | call args exactly match ≥2 in_progress tasks (plan has duplicate inputs) | unchanged | revision hint |
+| 4 | Partial overlap | no exact match; ≥1 task shares a (key, value) pair with the call's args | unchanged | revision hint |
+| 1 | Off-plan / no match | 0 exact, 0 partial overlap | unchanged | off-plan hint |
 
-The model calls `planstate_update`:
+Partial-overlap rule (case 4): `task.inputs` and `call_args` share at
+least one `(key, value)` pair AND are not dict-equal — i.e., they agree
+on at least one field but the call has extra/missing keys or disagrees
+on the non-shared keys.
 
-- **(a)** to draft the initial plan (REQUIRED on iteration 1 when the tool is available),
-- **(b)** to split/add tasks (per-item fan-out),
-- **(c)** to re-plan when observations contradict the plan (retries, branches),
-- **(d)** to record results for parallel multi-action batches (auto-update
-  is skipped when more than one non-meta tool ran),
-- **(e)** to terminate via `plan_status='completed' | 'failed'`,
-- **(f)** to mark the next task `in_progress` after the previous one
-  auto-completed (the framework does not advance for you).
+Cases 3 and 4 share a single `[plan_state hint]` format ("Plan needs
+revision") because the model's recovery action is identical: call
+`planstate_update` to disambiguate or amend the plan. The hint lists the
+matching task ids so the model can reconcile precisely.
+
+Hints are appended onto the corresponding tool-result message (by
+`tool_call_id`), so the model sees them on the next iteration alongside
+the tool's actual output. **The tool always executes**; the framework
+does not gate dispatch. Recovery is via `planstate_update` — re-running
+the tool would duplicate the side effect (case 2 is precisely that
+mistake observed in-the-wild).
+
+Skipped entirely when `plan_state.tasks` is empty (single-step "no
+plan" mode where no plan-state contract exists).
+
+The framework does **NOT** auto-advance to the next task. After an action
+auto-completes, `plan_state` has no `in_progress` task for that branch.
+The model decides the next step (see decision tree below).
+
+### Decision tree the model follows each iteration
+
+```
+1. Any task is `in_progress`?
+   → Dispatch the action tool(s) matching those tasks
+     (call args MUST dict-equal each task's inputs).
+   ⚠️  Do NOT re-dispatch a tool that already ran — backfill via
+       mode 2 instead. The framework does NOT gate dispatch: a
+       non-matching, duplicate, or off-plan call STILL executes and
+       you receive a `[plan_state hint]` describing the mismatch
+       (one of: off-plan, duplicate, plan-needs-revision). Plan-state
+       discipline is the only protection against duplicate
+       non-idempotent calls.
+
+2. Else, any pending task has all `depends_on` completed?
+   → Call `planstate_update` to transition the plan:
+     - Mark the next pending task in_progress, AND/OR
+     - Split/add tasks (fan-out, retries, sub-steps), AND/OR
+     - Cancel obsolete branches / rewire deps, AND/OR
+     - Backfill from messages: if a tool ran successfully but its
+       task is still pending/in_progress because the framework
+       couldn't auto-record (inputs mismatch, partial overlap, or
+       ambiguous match), copy the result from the conversation
+       history into the task and mark it `completed`, AND/OR
+     - Set `plan_status='completed'|'failed'` to terminate.
+
+3. Else (no eligible work to do)
+   → Pre-FINISH housekeeping FIRST: if `plan_state` has any task in
+     `pending` / `in_progress` / `blocked`, you must call
+     `planstate_update` to mark each terminal (`completed` /
+     `cancelled` / `failed`) BEFORE calling `finish`. The framework
+     enforces this — calling `finish` with non-terminal tasks
+     surfaces a tool-error in the next iteration's message history
+     telling you what to clean up.
+   → Once `plan_state` is internally consistent: call `finish` with
+     success=true (objective achieved) or success=false (no
+     recoverable path remains).
+```
+
+The first iteration is a special case: the model emits the initial
+`planstate_update` to draft the task list before any action runs. For
+single-step objectives (one tool call then `finish`), `planstate_update`
+can be skipped entirely.
+
+**Handling `failed` and `blocked` tasks**: their dependents stay
+`pending` (deps not `completed`). The model picks one of:
+
+- **Retry** — add a new task with `parent_attempt_id` linking back,
+  rewire dependents to depend on the new task.
+- **Cancel** — mark the task `cancelled` and cascade-cancel any
+  unreachable dependents.
+- **Give up** — call `finish` with `success=false`.
 
 ### Per-item fan-out pattern
 
@@ -363,6 +625,22 @@ For independent items you can also dispatch them as a parallel batch —
 turn. Auto-status-update is skipped for parallel turns, so the next
 iteration must be a `planstate_update` (case **(d)**) to record per-task
 outcomes.
+
+### Iterating over tasks for display
+
+`plan_state.tasks` is a flat list in **insertion order** (IDs stay stable
+across re-plans, so insertion order can look scrambled when retries or
+fan-outs add new IDs interleaved with the old ones). For a topologically
+sorted view (by `depends_on`, with id-ascending as tiebreaker), use:
+
+```python
+for t in result.plan_state.tasks_in_display_order():
+    print(f"[{t.id}] {t.status:<11} {t.objective}")
+```
+
+Same logic that the prompt's `## Current Plan State` block uses. Falls
+back to id-order if a cycle or dangling `depends_on` is detected (the
+run survives, just less prettily sorted).
 
 ### Sub-agent isolation
 
@@ -440,9 +718,9 @@ Objective → [Strategy.plan] → Tool Calls? ─No→ Finished
 
 ```python
 class AgentToolInput(BaseModel):
-    objective: str           # Task to accomplish
-    context: str = ""        # Additional context
-    max_iterations: int = 5  # Max loop iterations
+    objective: str               # Task to accomplish
+    context: str | None = None   # Additional context
+    max_iterations: int = 10     # Max loop iterations
 ```
 
 ### AgentToolOutput

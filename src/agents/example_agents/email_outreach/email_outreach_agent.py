@@ -83,7 +83,6 @@ def create_email_outreach_agent(
     llm_client: LLMClient,
     guidance_messages: list[str] | None = None,
     parallel_tool_calls: bool = False,
-    include_finish_tool: bool = True,
 ) -> AgentTool:
     """
     Create an email outreach agent.
@@ -93,7 +92,6 @@ def create_email_outreach_agent(
         llm_client: LLM client for tools that require LLM capabilities
         guidance_messages: Custom guidance messages (defaults to EMAIL_OUTREACH_GUIDANCE_MESSAGES)
         parallel_tool_calls: Allow parallel tool execution (default False for sequential workflow)
-        include_finish_tool: Include the finish tool (default True)
 
     Returns:
         Configured AgentTool for email outreach
@@ -105,7 +103,6 @@ def create_email_outreach_agent(
         strategy=strategy,
         guidance_messages=guidance_messages or EMAIL_OUTREACH_GUIDANCE_MESSAGES,
         parallel_tool_calls=parallel_tool_calls,
-        include_finish_tool=include_finish_tool,
     )
     return agent
 

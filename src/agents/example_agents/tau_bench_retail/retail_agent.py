@@ -77,7 +77,6 @@ def create_retail_agent(
     strategy: PlanningStrategy,
     guidance_messages: list[str] | None = None,
     parallel_tool_calls: bool = True,
-    include_finish_tool: bool = True,
 ) -> AgentTool:
     """
     Create a retail customer service agent.
@@ -86,7 +85,6 @@ def create_retail_agent(
         strategy: Planning strategy for the agent (e.g., DirectStrategy, ReactStrategy)
         guidance_messages: Custom guidance messages (defaults to RETAIL_GUIDANCE_MESSAGES)
         parallel_tool_calls: Allow parallel tool execution (default True)
-        include_finish_tool: Include the finish tool (default True)
 
     Returns:
         Configured AgentTool for retail customer service
@@ -98,7 +96,6 @@ def create_retail_agent(
         strategy=strategy,
         guidance_messages=guidance_messages or RETAIL_GUIDANCE_MESSAGES,
         parallel_tool_calls=parallel_tool_calls,
-        include_finish_tool=include_finish_tool,
     )
     return agent
 
