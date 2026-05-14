@@ -16,7 +16,6 @@ from typing import Any, Callable, Protocol
 from agents.agent_tool.agent_tool import AgentTool
 from agents.llm_core.llm_client import LLMClient
 
-
 # Type alias for LLM client or factory function
 LLMClientOrFactory = LLMClient | Callable[[], LLMClient]
 

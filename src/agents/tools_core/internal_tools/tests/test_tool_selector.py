@@ -36,9 +36,7 @@ def sample_tools() -> list[ToolInfo]:
 
 
 class TestToolSelector:
-    def test_format_messages(
-        self, mock_llm_client: MagicMock, sample_tools: list[ToolInfo]
-    ):
+    def test_format_messages(self, mock_llm_client: MagicMock, sample_tools: list[ToolInfo]):
         selector = ToolSelector(mock_llm_client)
         input_data = ToolSelectorInput(objective="Search for news", tools=sample_tools)
 
@@ -61,9 +59,7 @@ class TestToolSelector:
         mock_llm_client.generate.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_ainvoke(
-        self, mock_llm_client: MagicMock, sample_tools: list[ToolInfo]
-    ):
+    async def test_ainvoke(self, mock_llm_client: MagicMock, sample_tools: list[ToolInfo]):
         mock_llm_client.agenerate.return_value.parsed = _DEFAULT_RESPONSE
         selector = ToolSelector(mock_llm_client)
         input_data = ToolSelectorInput(objective="Search for news", tools=sample_tools)
@@ -90,9 +86,7 @@ class TestToolSelector:
         assert isinstance(result, ToolSelectorOutput)
         mock_llm_client.generate.assert_called_once()
 
-    def test_filter_tools_returns_matching(
-        self, mock_llm_client: MagicMock, simple_tool
-    ):
+    def test_filter_tools_returns_matching(self, mock_llm_client: MagicMock, simple_tool):
         # Mock returns web_search, but we pass simple_tool - should return empty
         mock_llm_client.generate.return_value.parsed = _DEFAULT_RESPONSE
         selector = ToolSelector(mock_llm_client)

@@ -105,12 +105,22 @@ See llm_configs.py for full provider capability matrix.
 from __future__ import annotations
 
 import json
+import os
+import time
 import typing as t
 from copy import deepcopy
 from dataclasses import dataclass
+from pathlib import Path
 
 from loguru import logger
-from openai import APIConnectionError, APIError, AsyncOpenAI, OpenAI, RateLimitError
+from openai import (
+    APIConnectionError,
+    APIError,
+    AsyncOpenAI,
+    BadRequestError,
+    OpenAI,
+    RateLimitError,
+)
 from openai.types.chat import (
     ChatCompletion,
     ChatCompletionMessageParam,
@@ -272,9 +282,7 @@ def _make_schema_non_strict_compatible(schema: dict[str, t.Any]) -> dict[str, t.
     return process_schema(schema, hide_defaults=True)
 
 
-def _pydantic_to_json_schema(
-    model: type[BaseModel], strict: bool = False
-) -> dict[str, t.Any]:
+def _pydantic_to_json_schema(model: type[BaseModel], strict: bool = False) -> dict[str, t.Any]:
     """Convert a Pydantic model to a JSON schema dict."""
     schema = model.model_json_schema()
     if strict:
@@ -536,13 +544,9 @@ class LLMClient:
             # we still need to prepare the schema for prompt injection
             if include_schema_in_prompt:
                 if response_model is not None:
-                    schema_for_prompt = _pydantic_to_json_schema(
-                        response_model, strict=False
-                    )
+                    schema_for_prompt = _pydantic_to_json_schema(response_model, strict=False)
                 elif response_schema is not None:
-                    schema_for_prompt = _make_schema_non_strict_compatible(
-                        response_schema
-                    )
+                    schema_for_prompt = _make_schema_non_strict_compatible(response_schema)
 
         elif mode in JSON_MODES:
             if response_schema is None:
@@ -564,9 +568,7 @@ class LLMClient:
 
         # Inject schema into prompt if requested
         if include_schema_in_prompt and schema_for_prompt is not None:
-            final_messages = _inject_schema_into_messages(
-                final_messages, schema_for_prompt
-            )
+            final_messages = _inject_schema_into_messages(final_messages, schema_for_prompt)
 
         kwargs: dict[str, t.Any] = {
             "messages": final_messages,
@@ -647,9 +649,7 @@ class LLMClient:
 
         # Determine if we should convert back to original format
         should_convert = (
-            fallback_convert_original
-            and original_mode is not None
-            and mode != original_mode
+            fallback_convert_original and original_mode is not None and mode != original_mode
         )
 
         if mode == "text":
@@ -697,9 +697,7 @@ class LLMClient:
             try:
                 parsed_dict = json.loads(content)
             except json.JSONDecodeError as e:
-                raise LLMParsingError(
-                    f"Failed to parse response as JSON: {e}", raw_content=content
-                )
+                raise LLMParsingError(f"Failed to parse response as JSON: {e}", raw_content=content)
 
             # If response_model provided, validate against it (fallback from pydantic)
             if response_model is not None:
@@ -958,9 +956,7 @@ class LLMClient:
         See generate() for full documentation.
         """
         if self._async_client is None:
-            raise RuntimeError(
-                "Async client not configured. Pass 'async_client' to __init__."
-            )
+            raise RuntimeError("Async client not configured. Pass 'async_client' to __init__.")
 
         model = model or self._default_model
         if model is None:
@@ -988,6 +984,28 @@ class LLMClient:
             response = await self._async_client.chat.completions.create(**chat_kwargs)
         except (APIConnectionError, RateLimitError) as e:
             raise LLMAPIError(f"API error: {e}") from e
+        except BadRequestError as e:
+            # Special-case content-policy / moderation rejections: dump the
+            # offending prompt so the caller can inspect what was flagged.
+            # Other 400 errors fall through to the generic APIError handler.
+            if _is_invalid_prompt_error(e):
+                dump_path = _dump_invalid_prompt(
+                    messages=messages,
+                    model=model,
+                    tools=tools,
+                    error=e,
+                )
+                logger.error(
+                    "Prompt rejected by content policy | model={} | "
+                    "dump_saved_to={} | preview:\n{}",
+                    model,
+                    dump_path,
+                    _summarize_messages_for_log(messages),
+                )
+                raise LLMAPIError(
+                    f"OpenAI API error: {e}\n[Full offending prompt dumped to: {dump_path}]"
+                ) from e
+            raise LLMAPIError(f"OpenAI API error: {e}") from e
         except APIError as e:
             raise LLMAPIError(f"OpenAI API error: {e}") from e
 
@@ -1000,6 +1018,93 @@ class LLMClient:
             first_tool_only=not effective_parallel,
             fallback_convert_original=fallback_convert_original,
         )
+
+
+def _is_invalid_prompt_error(err: BadRequestError) -> bool:
+    """Return True iff this BadRequestError is OpenAI's content-policy
+    'invalid_prompt' rejection (code='invalid_prompt')."""
+    try:
+        body = err.body
+        if isinstance(body, dict):
+            inner = body.get("error", {})
+            if isinstance(inner, dict) and inner.get("code") == "invalid_prompt":
+                return True
+    except Exception:
+        pass
+    # Fallback: pattern-match the message string.
+    return "invalid_prompt" in str(err) or "violating our usage policy" in str(err)
+
+
+def _dump_invalid_prompt(
+    messages: t.Sequence[t.Any],
+    model: str,
+    tools: t.Sequence[t.Any] | None,
+    error: BadRequestError,
+) -> Path:
+    """Write the offending prompt + error to a JSON file under
+    `LLM_PROMPT_DUMP_DIR` (env var, defaults to `./llm_dumps/`).
+
+    Returns the path written. Never raises — disk problems fall back to a
+    temp-dir best effort and log a warning.
+    """
+    target_dir = Path(os.environ.get("LLM_PROMPT_DUMP_DIR", "./llm_dumps"))
+    try:
+        target_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as oe:
+        logger.warning(
+            "Could not create dump dir {} ({}); falling back to /tmp",
+            target_dir,
+            oe,
+        )
+        target_dir = Path("/tmp")
+
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    path = target_dir / f"invalid_prompt-{ts}.json"
+    payload = {
+        "timestamp": ts,
+        "model": model,
+        "error": str(error),
+        "messages": [_message_to_jsonable(m) for m in messages],
+        "tools": [_tool_to_jsonable(tool) for tool in (tools or [])],
+    }
+    try:
+        path.write_text(json.dumps(payload, indent=2, default=str))
+    except OSError as oe:
+        logger.warning("Could not write prompt dump to {} ({})", path, oe)
+    return path
+
+
+def _message_to_jsonable(msg: t.Any) -> dict[str, t.Any]:
+    """Best-effort conversion of an OpenAI message dict to plain JSON."""
+    if isinstance(msg, dict):
+        return {k: msg[k] for k in msg}
+    if hasattr(msg, "model_dump"):
+        return t.cast(dict[str, t.Any], msg.model_dump())
+    return {"repr": repr(msg)}
+
+
+def _tool_to_jsonable(tool: t.Any) -> dict[str, t.Any]:
+    """Best-effort tool description: name + schema only."""
+    name = getattr(tool, "name", None) or getattr(tool, "__name__", repr(tool))
+    schema_fn = getattr(tool, "openai_schema", None)
+    schema: t.Any
+    try:
+        schema = schema_fn() if callable(schema_fn) else None
+    except Exception as e:
+        schema = f"<schema unavailable: {e}>"
+    return {"name": name, "schema": schema}
+
+
+def _summarize_messages_for_log(messages: t.Sequence[t.Any]) -> str:
+    """Compact preview of the offending messages for the log line.
+    Shows role + first 200 chars of content per message."""
+    lines: list[str] = []
+    for i, msg in enumerate(messages):
+        role = msg.get("role", "?") if isinstance(msg, dict) else getattr(msg, "role", "?")
+        content = msg.get("content", "") if isinstance(msg, dict) else getattr(msg, "content", "")
+        content_str = str(content)[:200] if content is not None else "<no content>"
+        lines.append(f"  [{i}] {role}: {content_str}")
+    return "\n".join(lines)
 
 
 # Factory functions for common configurations

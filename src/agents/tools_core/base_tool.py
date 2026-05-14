@@ -78,24 +78,18 @@ class BaseTool(ABC, t.Generic[InputT, OutputT]):
 
         # Validate that _input and _output are defined
         if not hasattr(cls, "_input") or cls._input is None:
-            raise TypeError(
-                f"{cls.__name__} must define '_input' as a pydantic BaseModel type"
-            )
+            raise TypeError(f"{cls.__name__} must define '_input' as a pydantic BaseModel type")
         if not hasattr(cls, "_output") or cls._output is None:
-            raise TypeError(
-                f"{cls.__name__} must define '_output' as a pydantic BaseModel type"
-            )
+            raise TypeError(f"{cls.__name__} must define '_output' as a pydantic BaseModel type")
 
         # Validate that they are BaseModel subclasses
         if not (inspect.isclass(cls._input) and issubclass(cls._input, BaseModel)):
             raise TypeError(
-                f"{cls.__name__}._input must be a pydantic BaseModel subclass, "
-                f"got {cls._input}"
+                f"{cls.__name__}._input must be a pydantic BaseModel subclass, got {cls._input}"
             )
         if not (inspect.isclass(cls._output) and issubclass(cls._output, BaseModel)):
             raise TypeError(
-                f"{cls.__name__}._output must be a pydantic BaseModel subclass, "
-                f"got {cls._output}"
+                f"{cls.__name__}._output must be a pydantic BaseModel subclass, got {cls._output}"
             )
 
     @property
@@ -130,6 +124,7 @@ class BaseTool(ABC, t.Generic[InputT, OutputT]):
                 return model_or_value.model_dump_json()
             try:
                 import json as _json
+
                 return _json.dumps(model_or_value)
             except (TypeError, ValueError):
                 return str(model_or_value)
@@ -261,9 +256,7 @@ def _build_model_from_signature(
             continue
 
         # Get type annotation or default to Any
-        annotation = (
-            param.annotation if param.annotation != inspect.Parameter.empty else t.Any
-        )
+        annotation = param.annotation if param.annotation != inspect.Parameter.empty else t.Any
 
         # Handle default values
         if param.default != inspect.Parameter.empty:
@@ -345,15 +338,11 @@ def create_fn_tool(
 
         # Build input/output models from function signature
         input_model = _build_model_from_signature(fn, schema_name=f"{tool_name}Input")
-        output_model = _build_output_model_from_return(
-            fn, schema_name=f"{tool_name}Output"
-        )
+        output_model = _build_output_model_from_return(fn, schema_name=f"{tool_name}Output")
 
         is_async = inspect.iscoroutinefunction(fn)
 
-        def _invoke_sync(
-            self: BaseTool[BaseModel, BaseModel], input: BaseModel
-        ) -> BaseModel:
+        def _invoke_sync(self: BaseTool[BaseModel, BaseModel], input: BaseModel) -> BaseModel:
             validated = self._validate_input(input)
             result = fn(**validated.model_dump())
             # Wrap result in output model if needed
@@ -365,9 +354,7 @@ def create_fn_tool(
         def _invoke_async_placeholder(
             self: BaseTool[BaseModel, BaseModel], input: BaseModel
         ) -> BaseModel:
-            raise NotImplementedError(
-                f"{tool_name} is async-only. Use ainvoke() or acall()."
-            )
+            raise NotImplementedError(f"{tool_name} is async-only. Use ainvoke() or acall().")
 
         async def _ainvoke_async(
             self: BaseTool[BaseModel, BaseModel], input: BaseModel
@@ -451,8 +438,7 @@ def create_tool(
         if inferred_input is None:
             if len(params) != 1:
                 raise ValueError(
-                    f"Function {fn.__name__} must have exactly one parameter, "
-                    f"got {len(params)}"
+                    f"Function {fn.__name__} must have exactly one parameter, got {len(params)}"
                 )
             param_name = params[0].name
             if param_name in hints:
@@ -470,15 +456,11 @@ def create_tool(
             inferred_output = hints["return"]
 
         # Validate they are BaseModel subclasses
-        if not (
-            inspect.isclass(inferred_input) and issubclass(inferred_input, BaseModel)
-        ):
+        if not (inspect.isclass(inferred_input) and issubclass(inferred_input, BaseModel)):
             raise TypeError(
                 f"Input type must be a pydantic BaseModel subclass, got {inferred_input}"
             )
-        if not (
-            inspect.isclass(inferred_output) and issubclass(inferred_output, BaseModel)
-        ):
+        if not (inspect.isclass(inferred_output) and issubclass(inferred_output, BaseModel)):
             raise TypeError(
                 f"Output type must be a pydantic BaseModel subclass, got {inferred_output}"
             )
@@ -486,18 +468,14 @@ def create_tool(
         # Create the tool class dynamically
         is_async = inspect.iscoroutinefunction(fn)
 
-        def _invoke_sync(
-            self: BaseTool[BaseModel, BaseModel], input: BaseModel
-        ) -> BaseModel:
+        def _invoke_sync(self: BaseTool[BaseModel, BaseModel], input: BaseModel) -> BaseModel:
             validated = self._validate_input(input)
             return fn(validated)
 
         def _invoke_async_placeholder(
             self: BaseTool[BaseModel, BaseModel], input: BaseModel
         ) -> BaseModel:
-            raise NotImplementedError(
-                f"{tool_name} is async-only. Use ainvoke() or acall()."
-            )
+            raise NotImplementedError(f"{tool_name} is async-only. Use ainvoke() or acall().")
 
         async def _ainvoke_async(
             self: BaseTool[BaseModel, BaseModel], input: BaseModel

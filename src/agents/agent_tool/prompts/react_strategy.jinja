@@ -1,129 +1,113 @@
-{# ReactStrategy prompt (corrected optimized version)
-   Plan-state imported from _planstate_common.jinja (batch_syntax=true)
-#}
+{# ---------------------------------------------------------------------
+ReactStrategy prompt (refactored)
+Plan-state imported from _planstate_common.jinja (batch_syntax=true)
+--------------------------------------------------------------------- #}
 
 {% import '_planstate_common.jinja' as ps %}
 
 
 {% macro reasoning_prompt(tool_names, auto_translate=false) %}
-Given an objective, produce a structured plan as ordered parallel batches
-using available tools.
+Given an objective, produce a structured execution plan using available tools.
 
 ## Available tools
 {{ tool_names | join(', ') }}
 
-## Planning rules
-- Each task must use exactly one available tool
-- A batch = independent tasks (no intra-batch dependencies)
-- Batches execute sequentially (batch N+1 depends on batch N)
-- Do not repeat successful or identical failed tool calls
-- Never retry identical inputs that previously failed (dict-equal rule)
+## Core planning constraints
+- Each task uses exactly ONE tool
+- A batch contains independent tasks only (no dependencies within batch)
+- Batches execute sequentially
+- Do not repeat identical or previously failed tool calls
+  (args are compared against tool-call history)
 
-## Batch execution model (CRITICAL)
-- In one iteration, ONLY `[BATCH 1]` is dispatched
-- On the next iteration, previous batch 2 becomes new batch 1
-- This "rolling batch window" defines execution order
+## Execution model
+- Only `[BATCH 1]` is executed per iteration
+- Later batches shift forward in subsequent iterations
+- This defines a rolling execution window
 
 {% if 'DELEGATE_SUBTASK' in tool_names %}
 ## Delegation
-Use only for:
-- independent multi-step workflows
-- repeated per-item tool execution
-
-Avoid delegation for simple single-tool actions
+Use only for multi-step or per-item repetitive workflows.
+Avoid delegation for single-tool operations.
 {% endif %}
 
 {% if 'PLANSTATE_UPDATE' in tool_names %}
 {% if auto_translate %}
 
-## Plan state (auto-translate mode)
-A framework translator converts reasoning → planstate_update.
+## Plan-state translation mode
+A separate system converts reasoning → planstate_update.
 
-You MUST NOT emit planstate_update.
+Do NOT emit `planstate_update`.
 
-You MUST explicitly describe:
-- next tasks to run
-- parallel batches
-- retries (with adjusted inputs)
-- cancellations / blocked tasks
+Instead specify:
+- next tasks
+- batching structure
+- retries (adjusted inputs)
+- cancellations
 - termination intent
 
 {% else %}
 
-## Plan state (explicit mode)
-Plan is managed via `planstate_update`.
+## Plan-state managed mode
 
-{{ ps.strict_emission_policy(batch_syntax=true) }}
-{{ ps.task_matching_semantics(batch_syntax=true) }}
+Plan is executed via `planstate_update`.
+
 {{ ps.initial_plan_required(batch_syntax=true) }}
-{{ ps.framework_handles_for_you(batch_syntax=true) }}
-{{ ps.parallel_fanout(batch_syntax=true) }}
-{{ ps.when_to_call_planstate_update(batch_syntax=true) }}
+{{ ps.reconciliation_model(batch_syntax=true) }}
+{{ ps.audit_field_rule(batch_syntax=true) }}
+{{ ps.parallel_execution(batch_syntax=true) }}
+{{ ps.mode_selection(batch_syntax=true) }}
+{{ ps.reconcile_and_plan(batch_syntax=true) }}
+{{ ps.reconcile_and_finish(batch_syntax=true) }}
+{{ ps.plan_mode(batch_syntax=true) }}
+{{ ps.finish_mode(batch_syntax=true) }}
+{{ ps.no_back_to_back_planstate_updates(batch_syntax=true) }}
+{{ ps.strict_emission_policy(batch_syntax=true) }}
 {{ ps.retry_redo_loops(batch_syntax=true) }}
-{{ ps.failed_blocked_handling(batch_syntax=true) }}
-{{ ps.typical_sequencing(batch_syntax=true) }}
+{{ ps.failed_and_blocked_tasks(batch_syntax=true) }}
+{{ ps.valid_iteration_transitions(batch_syntax=true) }}
 
 {% endif %}
 {% endif %}
 
-## TERMINATION CONTRACT (RESTORED — CRITICAL)
 
-You MUST explicitly signal termination intent in reasoning using:
+## Termination contract
 
-```
-FINISH: success=true: <summary>
-```
-
-OR
-
-```
-FINISH: success=false: <reason>
-```
+Termination must be explicitly expressed using a `FINISH` directive.
 
 ### success=true when:
-- objective achieved
-- required output produced successfully
-- safe external completion occurred (e.g. delegation succeeded)
+- objective is fully achieved
+- required outputs are produced
 
 ### success=false when:
-- tool failed 2+ times with identical inputs (dict-equal)
-- required information cannot be obtained from any tool or prior output
-- all reasonable tool combinations have been exhausted
+- repeated failures with same args
+- no viable tool path remains
+- all reasonable alternatives exhausted
 
-## REQUIRED PRE-FINISH SAFETY CHECK (CRITICAL)
+## Pre-finish rule
 
-Before emitting FINISH, ensure:
+Before finishing, all tasks must be terminal.
 
-- No task is left in `pending`
-- No task is left in `in_progress`
-- No task is `blocked`
+If any task remains non-terminal:
+→ use **Reconcile-and-finish** (single iteration combining cleanup + finish)
 
-If ANY remain:
-→ you MUST first trigger a plan cleanup via `planstate_update`
-(mark remaining tasks as completed / cancelled / failed appropriately)
-
-ONLY AFTER cleanup may FINISH be emitted.
+Do NOT split cleanup and finish across iterations.
 
 ## Failure recovery rule
-Before concluding failure:
-- try alternative tool (if exists)
-- if same tool failed twice with identical inputs → do NOT retry again
+Before declaring failure, attempt at least one alternative tool path if available.
 
 ## Output format
-A normal plan:
+
+Normal plan:
 ```plan
 [BATCH 1]
-- TOOL: description (inputs)
-
-[BATCH 2]
-- TOOL: description (inputs)
+- TOOL: description
 ```
 
-OR a termination directive (always inside a `plan` block — the action
-step parses this from the plan, not from free text):
+Termination:
 ```plan
 - FINISH: success=true: <summary>
 ```
+
 ```plan
 - FINISH: success=false: <reason>
 ```
@@ -131,11 +115,11 @@ step parses this from the plan, not from free text):
 
 
 {% macro action_prompt(auto_translate=false) %}
-Execute EXACTLY what the plan specifies.
+Execute ONLY what `[BATCH 1]` specifies.
 
-## RULES
+## Execution constraints
 
-### 1. FINISH handling (RESTORED CONTRACT)
+### 1. FINISH handling
 If plan contains:
 
 - `FINISH: success=true: X`
@@ -146,96 +130,143 @@ If plan contains:
 → call:
 `finish(success=false, result=X)`
 
-### 2. Batch execution rule (CRITICAL)
-- ONLY execute `[BATCH 1]`
-- NEVER execute later batches in same iteration
-- Batch 2+ runs in future iterations only
+### 2. Batch isolation
+- Only execute `[BATCH 1]`
+- Never execute future batches in same iteration
 
-### 3. Tool execution rule
-- ONLY call tools explicitly listed in `[BATCH 1]`
-- DO NOT infer tools from reasoning text
+### 3. Tool constraint
+- Only call tools explicitly listed in `[BATCH 1]`
 
 {% if auto_translate %}
 
-## Plan state authority (auto mode)
+## Auto-translation mode
 
-- Do NOT call `planstate_update` (disabled in this phase)
-- Execute ONLY tasks marked `in_progress`
-- Tool args MUST exactly match task `inputs` (dict-equal)
-- If no `in_progress` tasks exist → call `finish`:
-  - When `plan_status` is `completed`/`failed`: the run is terminal,
-    emit `finish` with the appropriate success flag and a brief summary
-  - When `plan_status` is still `active`: the translator intended
-    termination without marking a task. Still emit `finish` as the
-    escape path — do NOT re-emit a tool from earlier reasoning text.
-    Re-emitting a completed action would duplicate a tool call (and
-    its side effect) that already ran.
+- `planstate_update` is disabled in this phase
+- Execute only tasks marked `in_progress`
+- Tool arguments are derived from the task objective + the
+  tool schema. `task.inputs` is NOT a dispatch contract — it
+  is empty for `in_progress` tasks and filled retrospectively
+  during reconciliation.
+
+### If no `in_progress` tasks exist → call `finish`:
+- When `plan_status` is `completed`/`failed`: the run is
+  terminal. Emit `finish` with the matching success flag and
+  a brief summary.
+- When `plan_status` is still `active`: the translator
+  intended termination but didn't mark a task. Still emit
+  `finish` as the escape path — do NOT re-emit a tool from
+  earlier reasoning text. Re-emitting a completed action
+  duplicates a tool call (and its side effect) that already
+  ran.
 
 {% endif %}
 {% endmacro %}
 
 
 {% macro plan_translation_prompt() %}
-You are a plan-state translator.
+Translate reasoning into structured `planstate_update`.
 
-Convert reasoning → structured `planstate_update`.
+## Responsibilities
+- Interpret reasoning against current plan_state
+- Apply only explicitly implied changes
 
-## Core responsibilities
-- Read reasoning + current plan_state
-- Mutate plan_state only where explicitly implied
+## Core invariants
 
-## REQUIRED SAFETY RULES (RESTORED)
+### 1. Audit fields — filled ONLY during reconciliation
+- `inputs` and `result` are filled ONLY during reconciliation
+- New tasks must have `inputs=None`, `result=None`
 
-### 1. Input format strictness
-- `inputs` MUST be a JSON OBJECT
-- NEVER allow bare scalars or key=value strings
+### 2. Audit fields — KEEP SHORT
 
-### 2. No-op suppression
-- If reasoning implies no change → emit NO update at all
+When populating `inputs` and `result` for completed/failed tasks,
+both must be SHORT plain-prose pointers — NOT verbatim copies of
+tool arguments or tool output.
 
-### 3. Preserve audit integrity
-- NEVER modify completed/failed results
-- Preserve `result` fields verbatim
+`result`: one short sentence describing what came back.
+`inputs`: identifying call args only; trim long blobs.
 
-### 4. Retry rule (critical)
-If retrying:
-- create NEW task only
-- link via `parent_attempt_id`
-- do NOT overwrite original task
+Do NOT paste tool output (JSON, multi-paragraph text, raw page
+content) into `result`. Do NOT paste large argument blobs into
+`inputs`. The full tool output already lives in message history;
+audit fields are summary pointers, not duplicates.
 
-### 5. Speculative branch cancellation (RESTORED)
-If a conditional path is no longer valid:
-→ mark those tasks `cancelled`
-(e.g. "retry only if validation fails" but validation succeeded)
+Long multi-line content with embedded quotes, newlines, or
+nested JSON frequently breaks the JSON encoding of
+`planstate_update` itself, causing parse errors. Brevity is
+load-bearing.
 
-### 6. Parallel fan-out rule
-If reasoning implies multiple parallel tool calls:
-- create 1 task per call
-- ensure exact `inputs` match tool invocation
+### 3. Dependency wiring (`depends_on`)
+
+For every new task, set `depends_on` to the IDs of tasks whose
+outputs this task actually consumes. Do NOT default everything
+to the root task.
+
+Rules:
+- A task in batch N depends on the upstream tasks in batches
+  1..N-1 whose outputs it uses. If uncertain which specific
+  upstream task is the source, set `depends_on` to ALL tasks
+  in the immediately preceding batch.
+- Sibling tasks in the SAME batch must NOT depend on each
+  other (batches are parallel).
+- A task that consumes no upstream tool output should have
+  `depends_on=[]`.
+- After a fan-out (one task → N parallel sub-tasks), a
+  downstream consolidating task depends on ALL N sub-tasks,
+  not on the original fan-out parent.
+
+Generic example:
+```text
+[1] TOOL_A                   depends_on=[]
+[2] TOOL_B(item="X")         depends_on=[1]
+[3] TOOL_B(item="Y")         depends_on=[1]
+[4] TOOL_B(item="Z")         depends_on=[1]
+[5] TOOL_C(summarize)        depends_on=[2,3,4]
+```
+
+Task 5 consumes the outputs of all three parallel TOOL_B
+sub-tasks, so it depends on [2,3,4] — not on [1].
+
+### 4. No-op rule
+If no state change is implied → emit nothing
+
+### 5. Immutability
+- Never overwrite existing `result` unless explicitly corrected
+- Preserve stable task IDs
+
+### 6. Retry semantics
+- Always create a new task
+- Link via `parent_attempt_id`
+- Never overwrite prior attempts
+
+### 7. Cancellation rule
+If a branch becomes invalid → mark tasks `cancelled`
+
+### 8. Parallel execution rule
+If multiple tool calls are implied:
+- create one task per call
 - mark all `in_progress`
+- leave audit fields empty until execution completes
+- siblings in the same batch share `depends_on` (the upstream
+  batch); they do NOT depend on each other
 
-### 7. Termination handling (RESTORED 2-PHASE)
+### 9. Termination update (single atomic update)
 
-If reasoning indicates completion or failure:
+When completing or failing:
 
-#### Step 1: Cleanup
-- cancel unreachable `pending` tasks
-- mark incomplete `in_progress` tasks appropriately:
-  - completed (if done)
-  - cancelled (if not executed)
-  - failed (if attempted and errored)
+ONE `planstate_update` must:
+- reconcile all tasks:
+  - completed → populate `inputs` + `result` (SHORT — see §2)
+  - failed → populate error in `result` (SHORT)
+  - cancelled → prune unreachable work
+- enforce terminal consistency
+- set `plan_status` to `completed` or `failed`
 
-#### Step 2: Termination signal
-Choose ONE:
-- set `plan_status = completed`
-- OR `plan_status = failed`
-
-OR optionally:
-- create a single FINISH task as final step
+This update may later be paired with `finish` in the same iteration
+during Reconcile-and-finish.
 
 ## Constraints
 - emit at most ONE update
 - preserve task IDs
 - never renumber tasks
-- only apply changes explicitly implied by reasoning
+- apply only explicit implications from reasoning
 {% endmacro %}

@@ -8,11 +8,14 @@
 Based on previous messages, select the tool(s) to execute for the IMMEDIATE next step only.
 
 ## Loop Detection - CHECK FIRST:
-Before selecting tools, review the conversation history:
-1. List any tools that have already been called and their results
-2. If a tool returned an error with specific inputs, do NOT call it again with the same inputs
-3. If the same (tool, inputs) → error pattern has occurred 2+ times, call 'finish' with success=false.
-   "Same inputs" means dict-equal arguments: same keys, same values, same nesting.
+Before selecting tools, scan the prior **tool-call messages**
+in the conversation history (NOT `task.inputs` — those are
+retrospective audit data filled during reconciliation, not
+the dispatch record):
+1. List any tools that have already been called and what they returned.
+2. If a tool returned an error for specific call args, do NOT call it again with those args.
+3. If the same (tool, call args) → error pattern has occurred 2+ times, call 'finish' with success=false.
+   "Same args" means dict-equal arguments emitted to the tool: same keys, same values, same nesting.
 
 ## Tool Selection Rules:
 - Only call tools for what you identified as the next step
@@ -25,17 +28,22 @@ Before selecting tools, review the conversation history:
 
 ## Plan Tracking with `planstate_update` (META TOOL)
 The `planstate_update` tool is a META tool: it does NOT do work; it only
-writes the structured plan that the framework re-injects each turn. The
-framework manages mechanical state transitions automatically — you only call
-`planstate_update` for STRUCTURAL decisions.
-{{ ps.strict_emission_policy() }}
-{{ ps.task_matching_semantics() }}
+writes the structured plan that the framework re-injects each turn.
+Plan-state changes ONLY through `planstate_update` — the framework
+itself never mutates `plan_state` from tool results.
 {{ ps.initial_plan_required() }}
-{{ ps.framework_handles_for_you() }}
-{{ ps.parallel_fanout() }}
-{{ ps.when_to_call_planstate_update() }}
+{{ ps.reconciliation_model() }}
+{{ ps.audit_field_rule() }}
+{{ ps.parallel_execution() }}
+{{ ps.mode_selection() }}
+{{ ps.reconcile_and_plan() }}
+{{ ps.reconcile_and_finish() }}
+{{ ps.plan_mode() }}
+{{ ps.finish_mode() }}
+{{ ps.no_back_to_back_planstate_updates() }}
+{{ ps.strict_emission_policy() }}
 {{ ps.retry_redo_loops() }}
-{{ ps.failed_blocked_handling() }}
-{{ ps.typical_sequencing() }}
+{{ ps.failed_and_blocked_tasks() }}
+{{ ps.valid_iteration_transitions() }}
 {% endif %}
 {% endmacro %}

@@ -118,13 +118,9 @@ def create_browser_tools(page: Page) -> list[BaseTool[BaseModel, BaseModel]]:
     async def navigate(url: str) -> NavigateOutput:
         try:
             await page.goto(url, wait_until="domcontentloaded", timeout=30000)
-            return NavigateOutput(
-                success=True, current_url=page.url, title=await page.title()
-            )
+            return NavigateOutput(success=True, current_url=page.url, title=await page.title())
         except Exception as e:
-            return NavigateOutput(
-                success=False, current_url=page.url, title=f"Error: {e}"
-            )
+            return NavigateOutput(success=False, current_url=page.url, title=f"Error: {e}")
 
     @create_fn_tool(
         name="click",
@@ -240,11 +236,7 @@ class BrowsingTool(BaseTool[BrowsingToolInput, BrowsingToolOutput]):
 
         logger.info(
             "Starting browsing task | query={} | max_iterations={}",
-            (
-                validated.query[:50] + "..."
-                if len(validated.query) > 50
-                else validated.query
-            ),
+            (validated.query[:50] + "..." if len(validated.query) > 50 else validated.query),
             validated.max_iterations,
         )
 
@@ -366,9 +358,7 @@ class BrowsingTool(BaseTool[BrowsingToolInput, BrowsingToolOutput]):
                     logger.debug("Tool result: {}", tool_result[:200])
 
                     # Track navigation (tool names are normalized to uppercase)
-                    if tool_name.upper() == "NAVIGATE" and hasattr(
-                        result, "current_url"
-                    ):
+                    if tool_name.upper() == "NAVIGATE" and hasattr(result, "current_url"):
                         url = result.current_url
                         pages_visited.append(url)
                         logger.info("Navigated to: {}", url)

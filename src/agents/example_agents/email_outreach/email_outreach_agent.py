@@ -7,10 +7,6 @@ workflows including drafting, approval, and sending.
 
 from agents.agent_tool.agent_tool import AgentTool, AgentToolInput, AgentToolOutput
 from agents.agent_tool.base_strategy import PlanningStrategy
-from agents.llm_core.llm_client import LLMClient
-from agents.tools_core.base_tool import BaseTool
-from agents.tools.tavily import TavilySearch, TavilyInput, TavilyOutput
-
 from agents.example_agents.email_outreach.tools import (
     DraftMail,
     DraftMailInput,
@@ -28,7 +24,9 @@ from agents.example_agents.email_outreach.tools import (
     SummariseWebScrapeContentInput,
     SummariseWebScrapeContentOutput,
 )
-
+from agents.llm_core.llm_client import LLMClient
+from agents.tools.tavily import TavilyInput, TavilyOutput, TavilySearch
+from agents.tools_core.base_tool import BaseTool
 
 # Guidance messages for email outreach workflow
 EMAIL_OUTREACH_GUIDANCE_MESSAGES = [

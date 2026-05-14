@@ -24,16 +24,14 @@ Usage:
 import chainlit as cl
 from loguru import logger
 
-from agents.tools_core.base_tool import BaseTool
 from agents.example_agents.email_outreach.tools import (
     HumanApprovalInput,
     HumanApprovalOutput,
 )
+from agents.tools_core.base_tool import BaseTool
 
 
-class ChainlitHumanMailContentApproval(
-    BaseTool[HumanApprovalInput, HumanApprovalOutput]
-):
+class ChainlitHumanMailContentApproval(BaseTool[HumanApprovalInput, HumanApprovalOutput]):
     """
     Chainlit wrapper for HumanApproval tool.
 
@@ -41,9 +39,7 @@ class ChainlitHumanMailContentApproval(
     """
 
     _name = "human_approval"
-    description = (
-        "Requests human approval for the drafted email content via Chainlit UI."
-    )
+    description = "Requests human approval for the drafted email content via Chainlit UI."
     _input = HumanApprovalInput
     _output = HumanApprovalOutput
 

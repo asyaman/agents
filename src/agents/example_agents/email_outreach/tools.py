@@ -11,7 +11,6 @@ from agents.llm_core.llm_client import LLMClient
 from agents.tools_core.base_tool import BaseTool
 from agents.tools_core.llm_base_tool import LLMTool
 
-
 # =============================================================================
 # SummariseWebScrapeContent Tool
 # =============================================================================
@@ -63,9 +62,7 @@ Here is the content:
 
 
 class DraftMailInput(BaseModel):
-    contact_name: str = Field(
-        description="Name of the company employee receiving the mail"
-    )
+    contact_name: str = Field(description="Name of the company employee receiving the mail")
     email_address: str = Field(
         description="Email address of the company employee receiving the mail"
     )
@@ -118,7 +115,9 @@ Update the previous mail content with the folliwng instructions:
 
 class DraftMail(LLMTool[DraftMailInput, DraftMailOutput]):
     _name = "draft_mail"
-    description = "Write or refine sales emails tailored to companies using their provided descriptions."
+    description = (
+        "Write or refine sales emails tailored to companies using their provided descriptions."
+    )
     _input = DraftMailInput
     _output = DraftMailOutput
     example_inputs = [
@@ -143,9 +142,7 @@ class DraftMail(LLMTool[DraftMailInput, DraftMailOutput]):
     def __init__(self, llm_client: LLMClient, model: str | None = None) -> None:
         super().__init__(llm_client, model)
 
-    def format_messages(
-        self, input: DraftMailInput
-    ) -> list[ChatCompletionMessageParam]:
+    def format_messages(self, input: DraftMailInput) -> list[ChatCompletionMessageParam]:
         domain_known = bool(input.company_description)
         sender_name = "agents Team"
         sender_company_desc = """agents is an AI Agent automation platform offering:
@@ -164,9 +161,7 @@ class DraftMail(LLMTool[DraftMailInput, DraftMailOutput]):
             contact_name=input.contact_name,
             company_description=input.company_description,
             previous_draft=input.previous_draft if input.previous_draft else None,
-            draft_instructions=(
-                input.draft_instructions if input.draft_instructions else None
-            ),
+            draft_instructions=(input.draft_instructions if input.draft_instructions else None),
         )
 
         return [
@@ -184,16 +179,12 @@ class ExtractDomainInput(BaseModel):
 
 
 class ExtractDomainOutput(BaseModel):
-    lead_website_url: t.Optional[str] = Field(
-        description="The extracted domain URL for scraping"
-    )
+    lead_website_url: t.Optional[str] = Field(description="The extracted domain URL for scraping")
 
 
 class ExtractDomain(BaseTool[ExtractDomainInput, ExtractDomainOutput]):
     _name = "url_extraction"
-    description = (
-        "Extract url from provided e-mail address. Will return only the domain url"
-    )
+    description = "Extract url from provided e-mail address. Will return only the domain url"
     _input = ExtractDomainInput
     _output = ExtractDomainOutput
     example_inputs = [ExtractDomainInput(email_address="example@firecrawl.com")]
@@ -289,9 +280,7 @@ class MockApprovalStrategy:
         draft_instructions = "Redraft more friendly" if command == "retry" else None
         print(f"Human request at attempt {self._call_count}: {command}")
 
-        return HumanApprovalOutput(
-            command=command, draft_instructions=draft_instructions
-        )
+        return HumanApprovalOutput(command=command, draft_instructions=draft_instructions)
 
     def reset(self) -> None:
         """Reset the call counter and re-seed the RNG so behavior matches a
@@ -387,12 +376,8 @@ class SendEmailInput(BaseModel):
     mail_to: str = Field(
         description="Email address of the company employee who will receive the email"
     )
-    mail_cc: t.Optional[str] = Field(
-        default=None, description="The CC recipient email address"
-    )
-    mail_bc: t.Optional[str] = Field(
-        default=None, description="The BCC recipient email address"
-    )
+    mail_cc: t.Optional[str] = Field(default=None, description="The CC recipient email address")
+    mail_bc: t.Optional[str] = Field(default=None, description="The BCC recipient email address")
 
 
 class SendEmailOutput(BaseModel):
@@ -405,9 +390,7 @@ class SendEmail(BaseTool[SendEmailInput, SendEmailOutput]):
     _input = SendEmailInput
     _output = SendEmailOutput
     example_inputs = [
-        SendEmailInput(
-            mail_to="valerio@gmail.com", content="...", mail_cc=None, mail_bc=None
-        ),
+        SendEmailInput(mail_to="valerio@gmail.com", content="...", mail_cc=None, mail_bc=None),
         SendEmailInput(
             mail_to="sam@gmail.com",
             content="...",

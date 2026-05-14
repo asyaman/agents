@@ -11,12 +11,9 @@ from agents.utilities.utils import extract_json_subtexts, normalize_tool_name
 
 def test_extract_json_subtexts():
     assert (
-        extract_json_subtexts("preceding text ```json THIS IS TEXT``` trailing")
-        == "THIS IS TEXT"
+        extract_json_subtexts("preceding text ```json THIS IS TEXT``` trailing") == "THIS IS TEXT"
     )
-    assert (
-        extract_json_subtexts("preceding text ```json PARTIAL TEXT") == "PARTIAL TEXT"
-    )
+    assert extract_json_subtexts("preceding text ```json PARTIAL TEXT") == "PARTIAL TEXT"
     assert extract_json_subtexts("no json here") == "no json here"
 
 

@@ -19,9 +19,10 @@ have different ownership rules:
 - **`messages`** — the durable conversation history. Owned by `AgentTool`;
   the strategy returns a per-turn delta that `AgentTool` appends.
 - **`plan_state`** — the durable structured plan (tasks, statuses,
-  results). Owned by `AgentTool`; mutated by the `planstate_update` tool
-  (model-driven) and by `_execute_tool_calls`'s auto-status-update
-  (framework-driven). Strategies receive it by reference, read it, and
+  results). Owned by `AgentTool`; mutated ONLY by the `planstate_update`
+  tool (model-driven). The framework does NOT auto-mutate plan_state
+  from tool results — the model reconciles every action batch via
+  `planstate_update`. Strategies receive it by reference, read it, and
   generally do not mutate it directly (ReactStrategy's auto-translate
   step is the exception — it runs `planstate_update` programmatically).
 - **`StrategyOutput`** — transient, per-turn. Strategy produces; AgentTool
@@ -79,27 +80,27 @@ StrategyOutput(
    sync `plan_state.status` to terminal. Loop ends.
 
 3. **Execute tool calls** via `_execute_tool_calls`:
-   - **Policy guard**: meta tools (`planstate_update`, `finish`) must be
-     emitted alone per turn; mixed turns are rejected and the model gets
-     a policy-violation error result.
-   - **Phase A**: meta tools run first (sequentially). `planstate_update`
-     mutates `plan_state` immediately. `finish`'s `acall` is a no-op
+   - **Policy guard**: allowed per-iteration combinations are
+     (a) one `planstate_update` alone, (b) one `finish` alone, (c) one
+     or more action tools, (d) `planstate_update` + `finish` together
+     (Reconcile-and-finish mode). Anything else is rejected and the
+     model gets a policy-violation error result.
+   - **Phase A**: meta tools run first (sequentially). When both
+     `planstate_update` and `finish` are emitted, `planstate_update` is
+     sorted to run first so its mutations are visible before `finish`'s
+     pre-termination housekeeping check. `planstate_update` mutates
+     `plan_state` immediately. `finish`'s `acall` is a no-op
      acknowledgment; the real effect is in PATH 1b below.
-   - **Phase B**: snapshot `plan_state.in_progress_tasks()` ids after
-     meta tools ran.
-   - **Phase C**: non-meta tools run (parallel if `parallel_tool_calls=True`).
+   - **Phase B**: non-meta (action) tools run (parallel if
+     `parallel_tool_calls=True`).
    - **Append tool-result messages** to `messages` in emission order
      (preserves OpenAI's `tool_call_id` pairing).
-   - **Phase D (auto-status-update)**: for each tool result, find an
-     `in_progress` snapshot task whose `inputs` dict-equals the call's
-     args. If exactly one match → mark task `completed`/`failed` and
-     copy the truncated tool output into `task.result`. Tasks without a
-     matching tool stay `in_progress` (the next iteration is expected
-     to dispatch the right tool or re-plan). Tools without a matching
-     task have their result in `messages` only — plan_state is not
-     touched.
-   - The match rule is the same regardless of how many non-meta tools
-     ran in the turn — strict dict equality, no fuzzy fallback.
+   - **No framework auto-update.** Action-tool results live in `messages`
+     only; `plan_state` is NOT mutated by the framework. The model is
+     responsible for reconciling `plan_state` against the new
+     observations on the next iteration via `planstate_update`
+     (Reconcile-and-plan / Reconcile-and-finish modes — see decision
+     tree in the planner prompt).
 
 4. **PATH 1b check** — `finish` was called. If any executed `tool_call`
    has `tool_name == "FINISH"`, the framework runs a
@@ -395,7 +396,7 @@ follow a strict emission policy enforced in `_execute_tool_calls`.
 | Meta tool | Purpose | Always added? | Configured via |
 |---|---|---|---|
 | `finish` | Signals task completion. Carries `result: str` and `success: bool`. AgentTool reads its args and exits the loop. | **Yes** — universal termination signal, no opt-out. | (always on) |
-| `planstate_update` | Mutates the per-run `PlanState`. Provides full new task list and an optional `plan_status` (`completed`/`failed`/...). | Default yes. | `include_planstate_update_tool=True` (default) |
+| `planstate_update` | Mutates the per-run `PlanState`. Provides full new task list and an optional `plan_status` (`completed`/`failed`/...). | Default yes. | `enable_plan_state=True` (default) |
 
 ### Emission policy (HARD RULE — enforced by `_execute_tool_calls`)
 
@@ -448,23 +449,23 @@ per-path detail (when checked, `result` source, plan_status handling).
 ### Termination paths by configuration
 
 Since `finish` is always available, the matrix only varies on
-`include_planstate_update_tool`:
+`enable_plan_state`:
 
-| `include_planstate_update_tool` | Available terminations |
+| `enable_plan_state` | Available terminations |
 |---|---|
 | ✅ True (default) | 1a (no-tools), 1b (`finish`), 2 (`plan_status`), 3 (max_iter) |
 | ❌ False | 1a (no-tools), 1b (`finish`), 3 (max_iter) — path 2 never fires (no tool to mutate `plan_status`) |
 
-### Disabling `planstate_update`
+### Disabling plan-state
 
-Pass `include_planstate_update_tool=False` to opt out. The tool is added
-per-run, so disabling it does not affect the static `agent.tools` list:
+Pass `enable_plan_state=False` to opt out. This skips auto-adding
+`planstate_update` to the per-run tool list:
 
 ```python
 agent = AgentTool(
     tools=[...],
     strategy=DirectStrategy(client),
-    include_planstate_update_tool=False,  # default True
+    enable_plan_state=False,  # default True
 )
 ```
 
@@ -496,46 +497,35 @@ message history.
 - `depends_on`: list of task ids that must reach `completed` first
 - `parent_attempt_id`: optional pointer to a prior failed attempt
 
-### Phase D — auto-status-update + hint emission
+### Plan-state lifecycle (model-driven reconciliation)
 
-After non-meta tools run, the framework classifies each call against the
-`in_progress` snapshot **by `inputs` only** (TaskState is intentionally
-tool-agnostic — `inputs` carries the materialized kwargs but the task
-does not bind to a specific tool name, so the model can plan at the
-intent level and pick a dispatcher at execution time). One of five
-cases applies per call:
+The framework does NOT mutate `plan_state` from tool results.
+Every transition is driven by the model emitting `planstate_update`.
 
-| # | Case | Detection | plan_state effect | Hint |
-|---|---|---|---|---|
-| 5 | Clean exact | unique exact match against an available task | task → `completed`/`failed`, result stored | — |
-| 2 | Duplicate dispatch | exact match against a task already claimed by a prior call THIS turn | first call already completed the task; no further mutation | duplicate hint |
-| 3 | Multi-exact | call args exactly match ≥2 in_progress tasks (plan has duplicate inputs) | unchanged | revision hint |
-| 4 | Partial overlap | no exact match; ≥1 task shares a (key, value) pair with the call's args | unchanged | revision hint |
-| 1 | Off-plan / no match | 0 exact, 0 partial overlap | unchanged | off-plan hint |
+**Implication: after each action batch, `plan_state` is stale.** Tools
+ran, results are in `messages`, but tasks still appear `in_progress`
+until the model reconciles on the next iteration.
 
-Partial-overlap rule (case 4): `task.inputs` and `call_args` share at
-least one `(key, value)` pair AND are not dict-equal — i.e., they agree
-on at least one field but the call has extra/missing keys or disagrees
-on the non-shared keys.
+Per-iteration the model picks one of four modes (see the planner
+prompt's decision tree for the full specification):
 
-Cases 3 and 4 share a single `[plan_state hint]` format ("Plan needs
-revision") because the model's recovery action is identical: call
-`planstate_update` to disambiguate or amend the plan. The hint lists the
-matching task ids so the model can reconcile precisely.
+| Mode | When | Effect |
+|---|---|---|
+| **Reconcile-and-plan** | `plan_state` is diverged from reality AND objective not yet achieved | ONE `planstate_update` that records what just happened (Level 1+2 — status, `inputs`, `result`) AND plans the next step (Level 0 — mark next tasks `in_progress`) |
+| **Reconcile-and-finish** | `plan_state` is diverged AND objective is achieved | `planstate_update` + `finish` together (framework runs planstate_update first); the planstate_update reconciles + marks remaining tasks terminal; finish terminates |
+| **Plan** | `plan_state` is aligned AND objective not done | `planstate_update` for forward planning only (Level 0) |
+| **Finish** | `plan_state` is aligned AND objective done | `finish` alone |
 
-Hints are appended onto the corresponding tool-result message (by
-`tool_call_id`), so the model sees them on the next iteration alongside
-the tool's actual output. **The tool always executes**; the framework
-does not gate dispatch. Recovery is via `planstate_update` — re-running
-the tool would duplicate the side effect (case 2 is precisely that
-mistake observed in-the-wild).
+`task.inputs` and `task.result` are **retrospective audit fields**:
+they're `None` for `pending`/`in_progress` tasks and populated during
+reconciliation with the exact call args and tool output read from
+message history. The pair is the canonical audit record of "we called
+this tool with these args and got this back."
 
-Skipped entirely when `plan_state.tasks` is empty (single-step "no
-plan" mode where no plan-state contract exists).
-
-The framework does **NOT** auto-advance to the next task. After an action
-auto-completes, `plan_state` has no `in_progress` task for that branch.
-The model decides the next step (see decision tree below).
+The framework does **NOT** auto-advance to the next task. After
+reconciliation completes a task, the next `pending` task stays
+`pending` until the model commits the transition via the same (or a
+subsequent) `planstate_update`.
 
 ### Decision tree the model follows each iteration
 
@@ -697,7 +687,7 @@ class AgentTool(BaseTool[AgentToolInput, AgentToolOutput]):
         tools: list[BaseTool],
         strategy: PlanningStrategy,
         system_prompt: str | None = None,
-        include_planstate_update_tool: bool = True,
+        enable_plan_state: bool = True,
         parallel_tool_calls: bool = True,
         guidance_messages: list[str] | None = None,
     )

@@ -41,9 +41,7 @@ class Summarizer(LLMTool[SummarizerInput, SummarizerOutput]):
     ) -> None:
         super().__init__(llm_client, model=model)
 
-    def format_messages(
-        self, input: SummarizerInput
-    ) -> list[ChatCompletionMessageParam]:
+    def format_messages(self, input: SummarizerInput) -> list[ChatCompletionMessageParam]:
         prompt = (
             f"Given an input text with provided description, summarize the text with provided objectives.\n"
             f"Objectives: {input.objective}\n"

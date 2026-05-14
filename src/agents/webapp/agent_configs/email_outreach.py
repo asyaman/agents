@@ -15,11 +15,11 @@ LLM Client Configuration:
 
 from agents.agent_tool.agent_tool import AgentTool
 from agents.agent_tool.react_strategy import ReactStrategy
-from agents.llm_core.llm_client import LLMClient, create_azure_client
 from agents.example_agents.email_outreach.email_outreach_agent import (
     EMAIL_OUTREACH_GUIDANCE_MESSAGES,
     create_email_outreach_tools,
 )
+from agents.llm_core.llm_client import LLMClient, create_azure_client
 from agents.webapp.runner.agent_config import AgentConfig
 from agents.webapp.tool_wrappers.human_approval import ChainlitHumanMailContentApproval
 
@@ -65,9 +65,7 @@ def create_email_outreach_agent(
         "friendly": "Use a warm, friendly tone. Be personable while maintaining professionalism.",
         "casual": "Use a casual, conversational tone. Be approachable and relaxed.",
     }
-    guidance_messages.append(
-        tone_instructions.get(tone, tone_instructions["professional"])
-    )
+    guidance_messages.append(tone_instructions.get(tone, tone_instructions["professional"]))
 
     # Add custom guidance if provided
     if guidance and guidance.strip():

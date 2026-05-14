@@ -60,8 +60,12 @@ class ReactStrategy(PlanningStrategy):
            The action phase then sees the rebuilt plan block.
         3. Action: dispatch the tool(s) for the next step.
         4. (AgentTool executes the tool calls and appends results to
-           `messages`; Phase D auto-completes the `in_progress` task that
-           the translator just set up.)
+           `messages`. plan_state is NOT auto-mutated from tool results
+           — it gets reconciled on the NEXT iteration's translator step,
+           which reads the tool results from messages and emits a
+           `planstate_update` that records the actual call args and
+           outputs into the just-run task(s) — Reconcile-and-plan or
+           Reconcile-and-finish mode.)
         5. Next iteration: re-reason with the new tool result.
 
     Best for:
@@ -74,10 +78,11 @@ class ReactStrategy(PlanningStrategy):
         - Settings where reasoning quality improves with explicit text.
 
     Key insight: the action phase focuses on the IMMEDIATE next step,
-    not the entire plan. The translator stage is what bridges free-text
-    reasoning and structured plan state — it does NOT do work; it only
-    records the model's intent so AgentTool's auto-update has the right
-    `in_progress` target when the action runs.
+    not the entire plan. The translator stage bridges free-text
+    reasoning and structured plan state — it records the model's
+    intent (Level 0: objectives, depends_on, status transitions) and,
+    when reconciling, the retrospective audit data (Level 1+2:
+    `task.inputs` and `task.result` from the tool messages).
 
     Cost: with `auto_translate_plan=True` each iteration makes 3 LLM
     round-trips (reason → translate → act). Pass a smaller/cheaper
@@ -182,9 +187,7 @@ class ReactStrategy(PlanningStrategy):
         if self.reasoning_prompt:
             return self.reasoning_prompt
         tool_names = [tool.name for tool in tools]
-        return _templates.reasoning_prompt(
-            tool_names=tool_names, auto_translate=auto_translate
-        )
+        return _templates.reasoning_prompt(tool_names=tool_names, auto_translate=auto_translate)
 
     def _get_action_prompt(self, auto_translate: bool = False) -> str:
         """Get the action prompt from template or custom.
@@ -210,7 +213,7 @@ class ReactStrategy(PlanningStrategy):
         """Locate the planstate_update meta tool in the available tools list.
 
         Returns None if it isn't present (e.g., AgentTool was constructed with
-        include_planstate_update_tool=False) — the caller should then skip
+        enable_plan_state=False) — the caller should then skip
         the translation step entirely.
         """
         for tool in tools:
@@ -254,9 +257,7 @@ class ReactStrategy(PlanningStrategy):
         # agenerate's signature accepts BaseTool[BaseModel, BaseModel] but
         # PlanStateUpdate has narrower I/O generics; the tool itself is
         # compatible at runtime.
-        translator_tools = t.cast(
-            "list[BaseTool[t.Any, t.Any]]", [planstate_update_tool]
-        )
+        translator_tools = t.cast("list[BaseTool[t.Any, t.Any]]", [planstate_update_tool])
 
         max_attempts = self.plan_translator_max_retries + 1
         last_error: str | None = None
@@ -288,8 +289,7 @@ class ReactStrategy(PlanningStrategy):
                 # Wrong tool emitted — model error not recoverable through
                 # arg-fixing retries; bail.
                 logger.warning(
-                    "Plan translator emitted non-planstate_update tool call;"
-                    " ignoring | tools={}",
+                    "Plan translator emitted non-planstate_update tool call; ignoring | tools={}",
                     [tc.tool_name for tc in response.tool_calls],
                 )
                 return False
@@ -297,23 +297,14 @@ class ReactStrategy(PlanningStrategy):
             # Try to validate + apply.
             error: str | None = None
             if translator_call.parse_error is not None:
-                error = (
-                    "Invalid arguments for planstate_update: "
-                    f"{translator_call.parse_error}"
-                )
+                error = f"Invalid arguments for planstate_update: {translator_call.parse_error}"
             elif not isinstance(translator_call.parsed, PlanStateUpdateInput):
-                error = (
-                    "Parsed input has unexpected type: "
-                    f"{type(translator_call.parsed).__name__}"
-                )
+                error = f"Parsed input has unexpected type: {type(translator_call.parsed).__name__}"
             else:
                 try:
-                    output = await planstate_update_tool.acall(
-                        translator_call.parsed
-                    )
+                    output = await planstate_update_tool.acall(translator_call.parsed)
                     logger.debug(
-                        "Plan translator: applied update | revision={} | "
-                        "plan_status={}",
+                        "Plan translator: applied update | revision={} | plan_status={}",
                         output.revision,
                         output.plan_status,
                     )
@@ -326,8 +317,7 @@ class ReactStrategy(PlanningStrategy):
             attempts_left = max_attempts - attempt - 1
             if attempts_left <= 0:
                 logger.warning(
-                    "Plan translator: out of retries; skipping mutation | "
-                    "last_error={}",
+                    "Plan translator: out of retries; skipping mutation | last_error={}",
                     error[:200],
                 )
                 return False
@@ -393,9 +383,7 @@ class ReactStrategy(PlanningStrategy):
         return [
             {
                 "role": "system",
-                "content": (
-                    "## Current Plan State\n" + plan_state.serialize_for_prompt()
-                ),
+                "content": ("## Current Plan State\n" + plan_state.serialize_for_prompt()),
             }
         ]
 
@@ -443,9 +431,7 @@ class ReactStrategy(PlanningStrategy):
             + [
                 {
                     "role": "user",
-                    "content": self._get_reasoning_prompt(
-                        tools, auto_translate=translator_active
-                    ),
+                    "content": self._get_reasoning_prompt(tools, auto_translate=translator_active),
                 }
             ]
         )
@@ -485,9 +471,7 @@ class ReactStrategy(PlanningStrategy):
         action_tools = tools
         if translator_active:
             action_tools = [
-                tool
-                for tool in tools
-                if tool.name.upper() != _PLANSTATE_UPDATE_TOOL_NAME
+                tool for tool in tools if tool.name.upper() != _PLANSTATE_UPDATE_TOOL_NAME
             ]
 
         action_messages = (
@@ -497,9 +481,7 @@ class ReactStrategy(PlanningStrategy):
                 {"role": "assistant", "content": reasoning},
                 {
                     "role": "user",
-                    "content": self._get_action_prompt(
-                        auto_translate=translator_active
-                    ),
+                    "content": self._get_action_prompt(auto_translate=translator_active),
                 },
             ]
         )
@@ -526,8 +508,7 @@ class ReactStrategy(PlanningStrategy):
                 messages=output_messages,
                 tool_calls=[],
                 success=False,
-                result=response.finish_reason
-                or reasoning + " No tool calls returned by LLM",
+                result=response.finish_reason or reasoning + " No tool calls returned by LLM",
             )
 
         # Pass tool_calls through as-is (including any `finish`). AgentTool

@@ -22,8 +22,8 @@ Environment Variables:
 import chainlit as cl
 from loguru import logger
 
-from agents.webapp.config import settings, ensure_data_dir
 from agents.webapp.agent_configs.registry import get_agent_config, list_agents
+from agents.webapp.config import ensure_data_dir, settings
 from agents.webapp.runner.agent_runner import AgentRunner
 
 # Ensure data directory exists for SQLite

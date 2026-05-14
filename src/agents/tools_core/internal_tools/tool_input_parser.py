@@ -34,9 +34,7 @@ class ParseResult(BaseModel):
     tool_input: dict[str, t.Any] | None = Field(
         default=None, description="Parsed tool input as dict (if success=True)"
     )
-    error: LLMError | None = Field(
-        default=None, description="Error details (if success=False)"
-    )
+    error: LLMError | None = Field(default=None, description="Error details (if success=False)")
 
 
 class ParseToolInput(LLMTool[NLInput, ParseResult]):
@@ -68,8 +66,7 @@ class ParseToolInput(LLMTool[NLInput, ParseResult]):
 
         self._name = f"llm_{tool.name}"
         self.description = (
-            f"LLM calls the {tool.name} after parsing natural language task: "
-            f"{tool.description}"
+            f"LLM calls the {tool.name} after parsing natural language task: {tool.description}"
         )
 
         self.example_inputs = example_inputs or (

@@ -181,9 +181,7 @@ class TestSubAgentToolExecution:
             include_self_in_children=False,
         )
 
-        await tool.ainvoke(
-            SubAgentInput(sub_objective="Record this task", context="With context")
-        )
+        await tool.ainvoke(SubAgentInput(sub_objective="Record this task", context="With context"))
 
         assert len(history) == 1
         assert history[0].objective == "Record this task"

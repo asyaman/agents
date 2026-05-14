@@ -40,9 +40,7 @@ class TestPlanStateUpdateTool:
         plan = PlanState(objective="x")
         tool = PlanStateUpdate(plan)
         for expected_rev in (1, 2, 3):
-            out = tool.invoke(
-                PlanStateUpdateInput(tasks=[TaskState(id=1, objective="t")])
-            )
+            out = tool.invoke(PlanStateUpdateInput(tasks=[TaskState(id=1, objective="t")]))
             assert out.revision == expected_rev
             assert plan.revision_count == expected_rev
 
@@ -62,9 +60,7 @@ class TestPlanStateUpdateTool:
         assert plan.status == "draft"
         tool = PlanStateUpdate(plan)
         out = tool.invoke(
-            PlanStateUpdateInput(
-                tasks=[TaskState(id=1, objective="t", status="in_progress")]
-            )
+            PlanStateUpdateInput(tasks=[TaskState(id=1, objective="t", status="in_progress")])
         )
         assert plan.status == "active"
         assert out.plan_status == "active"
@@ -73,9 +69,7 @@ class TestPlanStateUpdateTool:
         plan = PlanState(objective="x")
         tool = PlanStateUpdate(plan)
         out = tool.invoke(
-            PlanStateUpdateInput(
-                tasks=[TaskState(id=1, objective="t", status="pending")]
-            )
+            PlanStateUpdateInput(tasks=[TaskState(id=1, objective="t", status="pending")])
         )
         assert plan.status == "draft"
         assert out.plan_status == "draft"
@@ -115,9 +109,7 @@ class TestPlanStateUpdateTool:
     async def test_acall_works_via_default_async_wrapper(self):
         plan = PlanState(objective="x")
         tool = PlanStateUpdate(plan)
-        out = await tool.acall(
-            PlanStateUpdateInput(tasks=[TaskState(id=1, objective="t")])
-        )
+        out = await tool.acall(PlanStateUpdateInput(tasks=[TaskState(id=1, objective="t")]))
         assert out.accepted is True
         assert plan.revision_count == 1
 
@@ -128,9 +120,7 @@ class TestPlanStateUpdateTool:
         external_ref = plan
 
         tool.invoke(
-            PlanStateUpdateInput(
-                tasks=[TaskState(id=1, objective="t", status="completed")]
-            )
+            PlanStateUpdateInput(tasks=[TaskState(id=1, objective="t", status="completed")])
         )
 
         assert external_ref is plan

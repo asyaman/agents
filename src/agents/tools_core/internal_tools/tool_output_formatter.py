@@ -278,9 +278,7 @@ class SimplifyToolOutput(LLMTool[ToolOutputT, NLOutput]):
 
         # Too large - reject
         if token_count > self.token_upper_bound:
-            raise OutputTooLargeError(
-                self.tool.name, token_count, self.token_upper_bound
-            )
+            raise OutputTooLargeError(self.tool.name, token_count, self.token_upper_bound)
 
         # Small enough - pass through
         if token_count <= self.token_lower_bound:
@@ -331,9 +329,7 @@ class SimplifyToolOutput(LLMTool[ToolOutputT, NLOutput]):
 
         # Too large - reject
         if token_count > self.token_upper_bound:
-            raise OutputTooLargeError(
-                self.tool.name, token_count, self.token_upper_bound
-            )
+            raise OutputTooLargeError(self.tool.name, token_count, self.token_upper_bound)
 
         # Small enough - pass through
         if token_count <= self.token_lower_bound:
@@ -349,9 +345,7 @@ class SimplifyToolOutput(LLMTool[ToolOutputT, NLOutput]):
 
         # Simplify chunks (parallel or sequential)
         if self.parallel_chunks:
-            results = await asyncio.gather(
-                *[self._simplify_chunk_async(chunk) for chunk in chunks]
-            )
+            results = await asyncio.gather(*[self._simplify_chunk_async(chunk) for chunk in chunks])
         else:
             results = [await self._simplify_chunk_async(chunk) for chunk in chunks]
 

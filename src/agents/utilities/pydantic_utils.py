@@ -100,13 +100,9 @@ def get_default(
     if default_handling is None:
         return default, set_optional, type_
 
-    if default_handling == "add_default_as_type" and not is_instance_of_type(
-        default, type_
-    ):
+    if default_handling == "add_default_as_type" and not is_instance_of_type(default, type_):
         return default, set_optional, t.Union[type_, type(default)]
-    if default_handling == "no_type_conflicts" and not is_instance_of_type(
-        default, type_
-    ):
+    if default_handling == "no_type_conflicts" and not is_instance_of_type(default, type_):
         return ..., False, type_
     if default_handling == "no_default":
         return ..., False, type_
@@ -140,9 +136,7 @@ def json_schema_to_pydantic_field(
         default_handling=default_handling,
     )
 
-    default, set_optional, type_ = get_default(
-        json_schema, name, type_, required, default_handling
-    )
+    default, set_optional, type_ = get_default(json_schema, name, type_, required, default_handling)
     if set_optional:
         type_ = t.Optional[type_]
 
@@ -160,9 +154,7 @@ def json_schema_to_pydantic_field(
         if definitions:
             ref_schema: dict[str, t.Any] = definitions.get(ref_name) or {}
         else:
-            raise ValueError(
-                f'A reference schema should be provided for {ref_name} in "$defs"'
-            )
+            raise ValueError(f'A reference schema should be provided for {ref_name} in "$defs"')
 
         def_type, def_pydantic_field = json_schema_to_pydantic_field(
             name=name,
@@ -429,9 +421,7 @@ def process_schema(
         if "required" not in schema:
             schema["required"] = []
         if field_name not in schema["required"]:
-            schema["required"].append(
-                field_name
-            )  # pyright: ignore[reportUnknownMemberType]
+            schema["required"].append(field_name)  # pyright: ignore[reportUnknownMemberType]
 
     if enforce_additional_properties:
         _enforce_additional_properties(schema)

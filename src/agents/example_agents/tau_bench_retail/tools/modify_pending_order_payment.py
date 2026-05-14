@@ -35,20 +35,13 @@ class ModifyPendingOrderPayment(Tool):
 
         # Check that the payment method is different
         if order["payment_history"][0]["payment_method_id"] == payment_method_id:
-            return (
-                "Error: the new payment method should be different from the current one"
-            )
+            return "Error: the new payment method should be different from the current one"
 
         amount = order["payment_history"][0]["amount"]
-        payment_method = data["users"][order["user_id"]]["payment_methods"][
-            payment_method_id
-        ]
+        payment_method = data["users"][order["user_id"]]["payment_methods"][payment_method_id]
 
         # Check if the new payment method has enough balance if it is a gift card
-        if (
-            payment_method["source"] == "gift_card"
-            and payment_method["balance"] < amount
-        ):
+        if payment_method["source"] == "gift_card" and payment_method["balance"] < amount:
             return "Error: insufficient gift card balance to pay for the order"
 
         # Modify the payment method
@@ -62,9 +55,7 @@ class ModifyPendingOrderPayment(Tool):
                 {
                     "transaction_type": "refund",
                     "amount": amount,
-                    "payment_method_id": order["payment_history"][0][
-                        "payment_method_id"
-                    ],
+                    "payment_method_id": order["payment_history"][0]["payment_method_id"],
                 },
             ]
         )

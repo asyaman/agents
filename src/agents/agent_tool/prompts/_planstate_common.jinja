@@ -1,4 +1,5 @@
-{# Shared plan-state semantics for DirectStrategy and ReactStrategy prompts.
+{# ---------------------------------------------------------------------
+Shared plan-state semantics for DirectStrategy and ReactStrategy prompts.
 
 Each macro takes one parameter: `batch_syntax: bool = false`.
 
@@ -6,343 +7,547 @@ Each macro takes one parameter: `batch_syntax: bool = false`.
 - batch_syntax=true  → ReactStrategy wording
 
 Edit here to propagate changes everywhere.
-#}
+--------------------------------------------------------------------- #}
 
 
 {% macro strict_emission_policy(batch_syntax=false) %}
-### Strict emission policy (HARD RULES)
+### Strict emission policy
 
-{% if batch_syntax %}
-- `[BATCH 1] planstate_update` MUST appear alone.
-- `[BATCH 1] finish` MUST appear alone.
-- NEVER mix meta tools with action tools.
-{% else %}
-- `planstate_update` MUST be emitted alone.
-- `finish` MUST be emitted alone.
-- NEVER mix meta tools with action tools.
-- NEVER emit two `planstate_update` calls in the same iteration.
-{% endif %}
+Within a single iteration, emit exactly ONE of:
 
-Mixed turns are rejected and no tool calls execute.
+- `planstate_update`
+- `finish`
+- one or more action tools
+- `planstate_update` + `finish`
+  (Reconcile-and-finish)
+
+Forbidden:
+- meta tools mixed with action tools
+- multiple `planstate_update` calls
+- multiple `finish` calls
+
+Invalid combinations are rejected atomically.
 {% endmacro %}
 
 
-{% macro task_matching_semantics(batch_syntax=false) %}
-### Task matching semantics
+{% macro reconciliation_model(batch_syntax=false) %}
+### Reconciliation model
 
-The framework matches tool calls to `in_progress` tasks using exact
-equality between the tool-call arguments and the task `inputs`.
+Action tools produce observations (tool calls/results).
+`plan_state` changes ONLY through `planstate_update`.
 
-A call auto-updates a task only when:
-- the task is `in_progress`
-- the call args exactly match the task `inputs`
-- no earlier call in the same iteration already claimed that task
+Therefore after any action batch:
+- tool results are authoritative
+- `plan_state` is stale until reconciled
 
-Matched calls automatically update the task status/result.
+Reconciliation updates `plan_state` to match observed tool
+activity, including:
+- task status
+- actual tool inputs
+- outputs/errors
+- parallel fan-out structure
+- off-plan activity
 
-Non-matching calls STILL execute. The framework appends a
-`[plan_state hint]` describing one of:
-- duplicate dispatch
-- multi-match ambiguity
-- partial overlap
-- off-plan execution
+No implicit task-state inference occurs.
+{% endmacro %}
 
-Never re-run a successful tool call solely to repair `plan_state`.
-Use `planstate_update` to reconcile completed work already present
-in prior tool results.
+
+{% macro audit_field_rule(batch_syntax=false) %}
+### Audit-field rule
+
+`task.inputs` and `task.result` are retrospective audit fields.
+
+While a task is `pending` or `in_progress`, leave both `None`.
+
+Populate them ONLY during reconciliation using the actual
+tool arguments and tool outputs/errors from observations. The
+pair `(task.inputs, task.result)` is the canonical audit
+record of "we called this tool with these args and got this
+back."
+
+#### Keep `result` SHORT
+
+`task.result` is a brief summary pointer, NOT a copy of the
+tool output. Aim for one short plain-prose sentence:
+- "summary saved" / "3 order IDs found: #W5158064, #W9767156, #W9833379"
+- "fetched 1.2 KB of markdown about Search.ch"
+- "order #W5158064 details retrieved (status=pending, 2 items)"
+
+Do NOT paste tool output verbatim into `task.result`. Long
+multi-line content — especially with embedded quotes,
+newlines, or nested JSON — frequently breaks the JSON
+encoding of the planstate_update call itself, causing parse
+errors that block progress.
+
+The full tool output already lives in message history. Your
+`task.result` only needs to identify what came back, not
+reproduce it.
+
+Same brevity applies to `task.inputs`: record the call args
+actually used, but trim long blobs (multi-paragraph prompts,
+embedded JSON, raw page content) to identifying fields only.
+
+#### Do not re-dispatch to repair
+
+Never re-dispatch a tool to repair `plan_state` — read the
+prior call args and result from message history instead. Side
+effects don't unwind; re-running a non-idempotent tool (email,
+payment, write) duplicates the effect.
 {% endmacro %}
 
 
 {% macro initial_plan_required(batch_syntax=false) %}
 ### Initial planning required
 
-When `planstate_update` is available AND the objective requires
-2 or more tool calls, the FIRST iteration MUST be a
+When `planstate_update` is available AND the objective
+requires 2 or more tool calls, the FIRST iteration MUST be:
+
 {% if batch_syntax %}
 `[BATCH 1] planstate_update`
 {% else %}
 `planstate_update`
 {% endif %}
-that drafts the task list and marks the first runnable task
-(or parallel batch) as `in_progress`.
+
+The initial plan should:
+- create the task graph
+- mark the first runnable task(s) `in_progress`
 
 Do not dispatch action tools before the initial plan.
 
-Skip planning only for genuinely single-step objectives
+Skip planning only for genuine single-step objectives
 (one tool call followed by `finish`).
 {% endmacro %}
 
 
-{% macro framework_handles_for_you(batch_syntax=false) %}
-### Automatic task updates
+{% macro parallel_execution(batch_syntax=false) %}
+### Parallel execution
 
-When a tool call uniquely matches an `in_progress` task,
-the framework automatically:
-- records the tool result into the task
-- marks the task `completed`
-- or marks it `failed` if the tool errors
+#### When to fan out (mandatory trigger)
 
-No follow-up `planstate_update` is needed for successful
-automatic updates.
+As soon as a tool result reveals N ≥ 2 independent items
+that all need the SAME downstream tool applied, you MUST:
 
-If matching fails, the framework leaves `plan_state`
-unchanged and appends a `[plan_state hint]`.
+1. At the very next `Reconcile-and-plan`, add N sub-tasks
+   (one per item) and mark them all `in_progress`.
+2. On the following action iteration, dispatch all N tool
+   calls in parallel in ONE iteration.
 
-Off-happy-path cases:
-- **Duplicate dispatch** — multiple calls matched the same task
-- **Multi-match ambiguity** — one call matched multiple tasks
-- **Partial overlap** — task and tool inputs share ≥1 (key, value)
-  pair but are not dict-equal (extra/missing keys, or differing
-  values on the non-shared keys)
-- **Off-plan execution** — no matching task exists
+Do NOT dispatch the items one-by-one across N separate
+action iterations.
 
-In all cases, the tool already executed — the side effect is
-already done. Recover by reconciling the plan with
-`planstate_update`, not by re-running the tool. Re-running a
-non-idempotent tool duplicates the side effect (sends two
-emails, charges twice, etc.); the framework cannot undo that
-for you.
+Trigger pattern to recognize:
+- step X returns a list / set / batch of IDs / items
+- step X+1 is the same tool applied to each item independently
+→ fan out + parallel dispatch is REQUIRED, not optional
 
-The framework does NOT automatically advance the next task.
-After work completes, you must decide what to run next and
-emit the appropriate next iteration.
-{% endmacro %}
+#### Anti-pattern (do NOT do this)
 
+3 independent items dispatched serially across iterations:
 
-{% macro parallel_fanout(batch_syntax=false) %}
-### Parallel batches require fan-out
+```text
+iter k:   planstate_update  (mark item-1 in_progress)
+iter k+1: TOOL(item_1)
+iter k+2: planstate_update  (reconcile + mark item-2)
+iter k+3: TOOL(item_2)
+iter k+4: planstate_update  (reconcile + mark item-3)
+iter k+5: TOOL(item_3)
+```
 
-Before dispatching parallel tool calls, split the work into
-one task per tool call.
+That is 6 iterations and 6 LLM round-trips for work that
+fits in 3.
 
-Each sub-task:
-- has its own task id
-- has concrete `inputs` matching the exact tool-call args
-- is marked `in_progress`
+#### Required pattern (do this)
 
-Independent tasks without `depends_on` relationships MAY all
-be `in_progress` simultaneously as one parallel batch.
+```text
+iter k:   planstate_update  (mark items 1,2,3 in_progress)
+iter k+1: TOOL(item_1), TOOL(item_2), TOOL(item_3)  ← parallel
+iter k+2: planstate_update  (reconcile all three)
+```
+
+#### Sub-task contract
+
+Each sub-task must:
+- have a unique task id
+- have a concrete item-specific objective (e.g., "Fetch
+  metadata for A" — NOT the umbrella "Fetch metadata for all
+  items")
+- be independently executable
+- leave `inputs` and `result` as `None`
+  until reconciliation
+
+Independent tasks MAY all be `in_progress`
+simultaneously.
+
+Tasks with `depends_on` relationships become
+`in_progress` only after dependencies complete.
 
 {% if batch_syntax %}
-A `[BATCH N]` should represent one logical step.
-Do not chain unrelated steps in the same batch.
+A `[BATCH N]` should represent one logical step only.
 {% else %}
-Parallel calls may represent one logical step only.
-Do not chain unrelated steps in the same iteration.
+One iteration should represent one logical step only.
 {% endif %}
 
-Example:
+#### Worked example
+
+After the fan-out plan:
 ```text
-[2] in_progress  Fetch metadata for A  inputs={"item_id":"A"}
-[3] in_progress  Fetch metadata for B  inputs={"item_id":"B"}
-[4] in_progress  Fetch metadata for C  inputs={"item_id":"C"}
+[2] in_progress  Fetch metadata for A
+[3] in_progress  Fetch metadata for B
+[4] in_progress  Fetch metadata for C
 ```
 
 {% if batch_syntax %}
-Then `[BATCH 1]` dispatches:
+Then `[BATCH 1]` dispatches (all in the same batch):
 - GET_METADATA(item_id="A")
 - GET_METADATA(item_id="B")
 - GET_METADATA(item_id="C")
 {% else %}
-Then dispatch:
+Then dispatch in parallel (all in the same iteration):
 - GET_METADATA(item_id="A")
 - GET_METADATA(item_id="B")
 - GET_METADATA(item_id="C")
 {% endif %}
 
-Without fan-out, parallel calls cannot be uniquely paired
-to tasks and their results remain only in message history.
+The next iteration's `Reconcile-and-plan` fills in each
+sub-task's `inputs` (exact args used) and `result` (tool
+output) for all three at once.
 
-### Status discipline
-
-`in_progress` should represent either:
-- one task
-- OR one independent parallel batch
-
-Do not mix dependent and independent `in_progress` tasks.
-
-Tasks with `depends_on` should become `in_progress`
-only after dependencies are `completed`.
+Without fan-out, an umbrella task `in_progress` plus N
+parallel calls forces reconciliation to restructure the plan
+retrospectively. Prefer fan-out ahead of dispatch.
 {% endmacro %}
 
 
-{% macro when_to_call_planstate_update(batch_syntax=false) %}
-### Decision tree
+{% macro mode_selection(batch_syntax=false) %}
+### Decision process
 
-Read `plan_state` and choose exactly ONE mode.
+At the START of every iteration:
 
-#### 1. Dispatch mode
+#### Step 1 — Divergence check
 
-If any tasks are `in_progress`:
-- dispatch the matching action tool calls
-- tool-call args MUST exactly match task `inputs`
+`plan_state` is diverged iff observed tool activity cannot
+be fully explained by current task states.
 
-If the task definition is wrong, FIRST revise the plan with
+Common cases:
+- completed tool still marked `in_progress`
+- tool call without task
+- wrong tool dispatched for task
+- task failure not reflected
+- partial parallel execution
+- missing fan-out structure
+
+If none apply, `plan_state` is aligned.
+
+#### Step 2 — Objective check
+
+Determine whether the user's objective is already achieved.
+
+#### Step 3 — Select exactly ONE mode
+
+| Diverged? | Done? | Mode                     |
+|-----------|-------|--------------------------|
+| Yes       | No    | Reconcile-and-plan       |
+| Yes       | Yes   | Reconcile-and-finish     |
+| No        | No    | Plan                     |
+| No        | Yes   | Finish                   |
+{% endmacro %}
+
+
+{% macro reconcile_and_plan(batch_syntax=false) %}
+### Reconcile-and-plan
+
+Emit ONE:
+
 {% if batch_syntax %}
 `[BATCH 1] planstate_update`
 {% else %}
 `planstate_update`
 {% endif %}
-before dispatching tools.
 
-#### 2. Planning mode
+that does BOTH:
+- reconcile prior observations
+- plan the next runnable work
 
-Else, if runnable `pending` tasks exist
-(all dependencies completed), emit
-{% if batch_syntax %}
-`[BATCH 1] planstate_update`
-{% else %}
-`planstate_update`
-{% endif %}
-to:
-- mark the next task(s) `in_progress`
-- split/fan-out work
-- add retry tasks
-- revise the plan
+Reconciliation may:
+- complete tasks
+- fail tasks
+- cancel tasks
+- add off-plan tasks
+- split umbrella tasks into fan-out sub-tasks
+
+Forward planning may:
+- mark next tasks `in_progress`
+- add new tasks
+- add retry attempts
 - cancel obsolete branches
-- backfill completed work from prior tool results
-- terminate via `plan_status`
 
-Backfilling means:
-if a tool already ran successfully but its task was not
-updated correctly, write the existing result into the task
-instead of re-running the tool.
+For every reconciled terminal task set BOTH:
+- `inputs` = actual tool args (from the tool-call message)
+- `result` = actual tool output / error (from the tool message)
 
-#### 3. Finish mode
+Do not re-dispatch tools solely to repair `plan_state`. Use
+the recorded observations in message history as the audit
+source.
 
-Else:
-{% if batch_syntax %}
-emit `[BATCH 1] finish`
-{% else %}
-emit `finish`
-{% endif %}
+Examples (generic tools and item labels):
 
-Use:
-- `success=true` when the objective is complete
-- `success=false` when no successful path remains
+(a) Clean per-call result; `plan_state` just hasn't caught up:
+    Task 3 `in_progress` "Get details for X". DETAILS call
+    succeeded with args `{"x_id":"X"}` returning
+    `{...details...}`.
+    → Reconcile: task 3 → `completed`,
+      `inputs={"x_id":"X"}`, `result="{...details...}"`.
+    → Forward: mark task 4 `in_progress`.
 
-Before `finish`, ALL tasks must already be terminal:
-- `completed`
-- `failed`
-- `cancelled`
+(b) Umbrella + fan-out (1 task, N calls):
+    Task 5 `in_progress` "Process items A, B, C". Three
+    parallel PROCESS calls (one per item) ran cleanly.
+    → Reconcile: mark task 5 `completed` with a summary
+      `result`; add sub-tasks 6, 7, 8 (one per item) each
+      `completed`, each with its own `inputs` (PROCESS args
+      for that item) and `result`.
+    → Forward: mark task 9 (next dependent step) `in_progress`.
 
-If any tasks remain `pending`, `blocked`, or `in_progress`,
-first emit
+(c) Wrong tool dispatched:
+    Task 2 `in_progress` "Fetch X". Model dispatched LIST
+    instead.
+    → Reconcile: leave task 2 `in_progress` (the work wasn't
+      done); add task 3 "LIST output (off-plan)" `completed`
+      with `inputs` = LIST call args and `result` = LIST output.
+    → Forward: re-dispatch the correct tool for task 2 or
+      replan around the LIST result.
+
+(d) Off-plan call:
+    No task expected SUMMARIZE but it ran.
+    → Reconcile: add task N "SUMMARIZE output (off-plan)"
+      `completed`, with `inputs` and `result` from the
+      message.
+    → Forward: integrate the result if useful, or cancel if
+      spurious.
+
+(e) Tool errored:
+    Task 7 `in_progress`; its tool failed in messages.
+    → Reconcile: task 7 → `failed`, `inputs` = call args,
+      `result` = error description.
+    → Forward: add task 8 as a retry (`parent_attempt_id=7`)
+      or cancel dependent branches.
+
+(For the case where a task is `in_progress` but no matching
+tool ran in the recent batch — leave the task as-is and
+either re-dispatch next iteration or cancel it.)
+{% endmacro %}
+
+
+{% macro reconcile_and_finish(batch_syntax=false) %}
+### Reconcile-and-finish
+
+Emit:
+
 {% if batch_syntax %}
 `[BATCH 1] planstate_update`
 {% else %}
 `planstate_update`
 {% endif %}
-to transition them into terminal states.
 
-The framework hard-rejects `finish` while non-terminal
-tasks exist, returning a tool error that cites the task
-ids that block — read the error, clean those tasks up
-in the next `planstate_update`, then re-emit `finish`.
+together with
 
-### No consecutive `planstate_update`
+{% if batch_syntax %}
+`[BATCH 1] finish`
+{% else %}
+`finish`
+{% endif %}
 
-`planstate_update` commits decisions; it is not a scratchpad.
+in the SAME iteration.
 
-After a `planstate_update`, the next iteration MUST be:
-- an action dispatch
-- OR `finish`
+`planstate_update` must:
+- reconcile final observations
+- transition all remaining tasks to terminal states
+- optionally set `plan_status='completed'`
 
-Never emit back-to-back `planstate_update` calls without
-new observations from tool results.
+`finish` then terminates execution with the achieved result.
 
-Anti-pattern:
-```text
-iter N    planstate_update
-iter N+1  planstate_update
-iter N+2  planstate_update
-iter N+3  action tool
-```
+These two meta tools may co-occur ONLY in this mode.
+Reconciliation logically precedes finish.
 
-Correct pattern:
-```text
-iter N    planstate_update
-iter N+1  action tool
-```
+#### Mandatory trigger: `finish` was just rejected for housekeeping
+
+If your previous emission was `finish` alone AND the framework
+rejected it because non-terminal tasks remained (the tool
+result said *"finish was rejected: plan_state has N
+non-terminal task(s)..."*), your VERY NEXT emission MUST be
+this Reconcile-and-finish bundle — `planstate_update` AND
+`finish` together, marking every remaining task terminal in
+the same iteration.
+
+Do NOT split this into:
+- iteration A: `planstate_update` alone (mark tasks terminal)
+- iteration B: `finish` alone
+
+That wastes an entire iteration. The whole point of the
+bundle is that you already know which tasks to mark terminal
+and you already know you want to finish — emit both at once.
 {% endmacro %}
 
 
-{% macro failed_blocked_handling(batch_syntax=false) %}
-### Handling failed and blocked tasks
+{% macro plan_mode(batch_syntax=false) %}
+### Plan
+
+Use this mode when:
+- `plan_state` already matches observations
+- the objective is not yet complete
+
+Emit ONE:
+
+{% if batch_syntax %}
+`[BATCH 1] planstate_update`
+{% else %}
+`planstate_update`
+{% endif %}
+
+for forward planning only.
+
+Typical actions:
+- mark next task(s) `in_progress`
+- fan out parallel work
+- add retry attempts
+- cancel obsolete branches
+{% endmacro %}
+
+
+{% macro finish_mode(batch_syntax=false) %}
+### Finish
+
+Use this mode when:
+- `plan_state` is aligned
+- the objective is achieved
+
+Emit ONLY:
+
+{% if batch_syntax %}
+`[BATCH 1] finish`
+{% else %}
+`finish`
+{% endif %}
+{% endmacro %}
+
+
+{% macro no_back_to_back_planstate_updates(batch_syntax=false) %}
+### No consecutive `planstate_update`s
+
+`planstate_update` represents committed state transitions,
+not speculative reasoning.
+
+After a `planstate_update`-only iteration, the next
+iteration MUST be:
+- action tools
+- `finish` alone
+- OR `planstate_update` + `finish` (Reconcile-and-finish)
+
+Never emit consecutive `planstate_update`-only iterations
+without new tool observations between them.
+
+`Reconcile-and-plan` must combine reconciliation and forward
+planning into ONE update.
+
+The framework enforces this rule: a back-to-back
+`planstate_update`-only emission is rejected atomically (no
+tool runs) and you will see a tool-error explaining the
+allowed next moves. Treat that error as a hard correction —
+on the next iteration, pick one of the three legal options
+above.
+{% endmacro %}
+
+
+{% macro failed_and_blocked_tasks(batch_syntax=false) %}
+### Failed and blocked tasks
 
 A task becomes:
 - `failed` when its tool errors
 - `blocked` when explicitly marked blocked
 
-Dependent tasks remain `pending` until dependencies are
-`completed`.
+Dependent tasks remain `pending` until dependencies
+complete successfully.
 
-To recover, use
-{% if batch_syntax %}
-`[BATCH 1] planstate_update`
-{% else %}
-`planstate_update`
-{% endif %}
-to do one of the following:
+Recovery options:
+- retry with a new task
+- cancel the branch
+- terminate with `finish(success=false)`
 
-- **Retry**
-  - add a NEW retry task
-  - link it with `parent_attempt_id`
-  - rewire dependents to the retry task
-
-- **Cancel the branch**
-  - mark unreachable work `cancelled`
-
-- **Give up**
-  - terminate with `finish(success=false)`
-
-If no recoverable path remains, `finish(success=false)`
-is the correct outcome.
+If no recoverable path remains,
+`finish(success=false)` is correct.
 {% endmacro %}
 
 
 {% macro retry_redo_loops(batch_syntax=false) %}
 ### Retry and redo loops
 
-When work must be retried with different inputs,
-the next iteration MUST be a
-{% if batch_syntax %}
-`[BATCH 1] planstate_update`
-{% else %}
-`planstate_update`
-{% endif %}
-that ADDS new retry tasks.
+#### When `parent_attempt_id` is REQUIRED
 
-Do NOT silently re-run the same tool call.
+Set `parent_attempt_id` on a NEW task whenever you are
+re-doing work that an earlier task already attempted. The
+two canonical triggers:
 
-Retry attempts should:
-- preserve the original task/result
-- create a NEW task
-- link retries via `parent_attempt_id`
-- rewire downstream dependencies to the latest retry
+1. **Tool/task errored in a prior iteration** — the earlier
+   task is now `failed` (or stuck `in_progress` after a
+   recoverable error) and you are creating a fresh task to
+   try the same logical step again, usually with adjusted
+   inputs.
+
+2. **Re-do requested** — a human reviewer, an approval tool,
+   or downstream feedback explicitly asked for the work to
+   be repeated (e.g. "redraft more friendly", "please retry
+   with X"). The earlier task is `completed` but its output
+   was rejected.
+
+In BOTH cases:
+- Do NOT mutate the old task's `result` or `status`.
+- Do NOT use `depends_on` as a substitute for
+  `parent_attempt_id` — `depends_on` expresses data flow,
+  `parent_attempt_id` expresses retry lineage. They serve
+  different purposes; set BOTH where applicable.
+
+#### Retry task contract
+
+The new retry task must:
+- have a fresh task id
+- set `parent_attempt_id` to the id of the task being redone
+- set `depends_on` to whatever upstream tasks the retry
+  actually consumes (often the same upstream as the original
+  attempt, plus any feedback-producing task such as a human
+  approval that triggered the redo)
+- be marked `in_progress` if it will run now, or `pending`
+  otherwise
 
 Example:
+
 ```text
-[N]   completed   Produce X
-[N+1] completed   Validate X   result="rejected"
+[N]   failed/completed  Produce X
+[K]   completed         Human review of N → rejected, redo
 
-[M]   in_progress Produce X — attempt 2
-                  parent_attempt_id=N
-
-[M+1] pending     Validate X — attempt 2
-                  depends_on=[M]
-
-[N+2] pending     Use X
-                  depends_on=[M+1]
+[M]   in_progress  Produce X — attempt 2
+                   parent_attempt_id=N
+                   depends_on=[K]
 ```
 
-Terminate retry loops when repeated attempts produce the
-same unrecoverable outcome.
+#### Termination
+
+Terminate retry loops when outcomes become repeatedly
+unrecoverable. If the same logical step has failed twice
+with the same root cause, prefer escalation (transfer to
+human / `finish(success=false)`) over a third attempt.
 {% endmacro %}
 
 
-{% macro typical_sequencing(batch_syntax=false) %}
-### Typical sequencing
+{% macro valid_iteration_transitions(batch_syntax=false) %}
+### Valid iteration transitions
+
+```text
+planstate_update → action tools | finish
+action tools     → reconcile modes | finish
+finish           → terminal
+```
+
+Canonical flow:
 
 {% if batch_syntax %}
 ```text
@@ -351,8 +556,7 @@ same unrecoverable outcome.
 3. [BATCH 1] planstate_update
 4. action tool(s)
 5. ...
-N. final action tool(s)
-N+1. [BATCH 1] finish
+N. [BATCH 1] planstate_update + finish
 ```
 {% else %}
 ```text
@@ -361,11 +565,7 @@ N+1. [BATCH 1] finish
 3. planstate_update
 4. action tool(s)
 5. ...
-N. final action tool(s)
-N+1. finish
+N. planstate_update + finish
 ```
 {% endif %}
-
-Reasoning happens between iterations:
-observe tool results first, then decide what to do next.
 {% endmacro %}

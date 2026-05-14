@@ -470,9 +470,7 @@ TASKS_TEST = [
             Action(name="get_order_details", kwargs={"order_id": "#W5199551"}),
             Action(name="get_order_details", kwargs={"order_id": "#W8665881"}),
             Action(name="get_order_details", kwargs={"order_id": "#W9389413"}),
-            Action(
-                name="calculate", kwargs={"expression": "3131.1 + 4777.75 + 367.38"}
-            ),
+            Action(name="calculate", kwargs={"expression": "3131.1 + 4777.75 + 367.38"}),
             Action(
                 name="cancel_pending_order",
                 kwargs={"order_id": "#W5199551", "reason": "no longer needed"},
@@ -2052,9 +2050,7 @@ TASKS_TEST = [
             Action(name="get_order_details", kwargs={"order_id": "#W5797164"}),
             Action(name="get_order_details", kwargs={"order_id": "#W5061109"}),
             Action(name="get_product_details", kwargs={"product_id": "4768869376"}),
-            Action(
-                name="calculate", kwargs={"expression": "1319.43 - 302.67 + 271.89"}
-            ),
+            Action(name="calculate", kwargs={"expression": "1319.43 - 302.67 + 271.89"}),
             Action(
                 name="modify_pending_order_items",
                 kwargs={

@@ -10,9 +10,7 @@ class ListAllProductTypes(Tool):
     @staticmethod
     def invoke(data: Dict[str, Any]) -> str:
         products = data["products"]
-        product_dict = {
-            product["name"]: product["product_id"] for product in products.values()
-        }
+        product_dict = {product["name"]: product["product_id"] for product in products.values()}
         product_dict = dict(sorted(product_dict.items()))
         return json.dumps(product_dict)
 

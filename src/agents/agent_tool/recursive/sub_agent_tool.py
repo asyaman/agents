@@ -53,9 +53,7 @@ class SubAgentOutput(BaseModel):
     """
 
     result: str = Field(description="The result of the sub-task.")
-    success: bool = Field(
-        description="Whether the sub-task was completed successfully."
-    )
+    success: bool = Field(description="Whether the sub-task was completed successfully.")
 
 
 class SubAgentTool(BaseTool[SubAgentInput, SubAgentOutput]):
@@ -244,9 +242,7 @@ class SubAgentTool(BaseTool[SubAgentInput, SubAgentOutput]):
 
         # Count tool calls from messages
         tool_calls_count = sum(
-            1
-            for msg in result.messages
-            if msg.get("role") == "assistant" and msg.get("tool_calls")
+            1 for msg in result.messages if msg.get("role") == "assistant" and msg.get("tool_calls")
         )
 
         # Record to global history

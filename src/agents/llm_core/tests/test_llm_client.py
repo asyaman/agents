@@ -205,13 +205,9 @@ def _make_tool_completion(
 # Tests
 class TestTextMode:
     def test_text_mode_returns_content(self, llm_client: LLMClient, mock_client: Mock):
-        mock_client.chat.completions.create.return_value = _make_completion(
-            "Hello world"
-        )
+        mock_client.chat.completions.create.return_value = _make_completion("Hello world")
 
-        response = llm_client.generate(
-            messages=[{"role": "user", "content": "Hi"}], mode="text"
-        )
+        response = llm_client.generate(messages=[{"role": "user", "content": "Hi"}], mode="text")
 
         assert isinstance(response, TextResponse)
         assert response.content == "Hello world"
@@ -233,12 +229,8 @@ class TestPydanticMode:
         assert response.parsed.name == "test"
         assert response.parsed.value == 42
 
-    def test_pydantic_mode_raises_on_invalid_json(
-        self, llm_client: LLMClient, mock_client: Mock
-    ):
-        mock_client.chat.completions.create.return_value = _make_completion(
-            "not valid json"
-        )
+    def test_pydantic_mode_raises_on_invalid_json(self, llm_client: LLMClient, mock_client: Mock):
+        mock_client.chat.completions.create.return_value = _make_completion("not valid json")
 
         with pytest.raises(LLMValidationError):
             llm_client.generate(
@@ -249,12 +241,8 @@ class TestPydanticMode:
 
 
 class TestJsonSchemaMode:
-    def test_json_schema_mode_returns_dict(
-        self, llm_client: LLMClient, mock_client: Mock
-    ):
-        mock_client.chat.completions.create.return_value = _make_completion(
-            '{"key": "value"}'
-        )
+    def test_json_schema_mode_returns_dict(self, llm_client: LLMClient, mock_client: Mock):
+        mock_client.chat.completions.create.return_value = _make_completion('{"key": "value"}')
 
         response = llm_client.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -375,9 +363,7 @@ class TestOllamaCompatibility:
             '{"name": "test", "value": 1}'
         )
 
-        llm = LLMClient(
-            client=mock_client, default_model="llama3.2", provider=Provider.OLLAMA
-        )
+        llm = LLMClient(client=mock_client, default_model="llama3.2", provider=Provider.OLLAMA)
 
         llm.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -405,15 +391,11 @@ class TestSchemaProcessing:
 class TestAsyncGenerate:
     @pytest.mark.asyncio
     async def test_async_text_mode(self, mock_async_client: AsyncMock):
-        mock_async_client.chat.completions.create.return_value = _make_completion(
-            "Hello async"
-        )
+        mock_async_client.chat.completions.create.return_value = _make_completion("Hello async")
         mock_async_client.api_key = "test-key"
 
         llm = LLMClient(async_client=mock_async_client, default_model="gpt-4o")
-        response = await llm.agenerate(
-            messages=[{"role": "user", "content": "Hi"}], mode="text"
-        )
+        response = await llm.agenerate(messages=[{"role": "user", "content": "Hi"}], mode="text")
 
         assert isinstance(response, TextResponse)
         assert response.content == "Hello async"
@@ -422,15 +404,11 @@ class TestAsyncGenerate:
 class TestErrorHandling:
     def test_missing_response_model_raises(self, llm_client: LLMClient):
         with pytest.raises(ValueError, match="response_model is required"):
-            llm_client.generate(
-                messages=[{"role": "user", "content": "Hi"}], mode="pydantic"
-            )
+            llm_client.generate(messages=[{"role": "user", "content": "Hi"}], mode="pydantic")
 
     def test_missing_tools_raises(self, llm_client: LLMClient):
         with pytest.raises(ValueError, match="tools is required"):
-            llm_client.generate(
-                messages=[{"role": "user", "content": "Hi"}], mode="tool_calling"
-            )
+            llm_client.generate(messages=[{"role": "user", "content": "Hi"}], mode="tool_calling")
 
     def test_missing_client_raises(self):
         llm = LLMClient()
@@ -439,9 +417,7 @@ class TestErrorHandling:
 
 
 class TestIncludeSchemaInPrompt:
-    def test_schema_injected_into_messages(
-        self, llm_client: LLMClient, mock_client: Mock
-    ):
+    def test_schema_injected_into_messages(self, llm_client: LLMClient, mock_client: Mock):
         mock_client.chat.completions.create.return_value = _make_completion(
             '{"name": "test", "value": 42}'
         )
@@ -500,9 +476,7 @@ class TestCompatibilityFallbacks:
             [("call_1", "ToolSchema", {"query": "test"})]
         )
 
-        llm = LLMClient(
-            client=mock_client, default_model="llama3.2", provider=Provider.OLLAMA
-        )
+        llm = LLMClient(client=mock_client, default_model="llama3.2", provider=Provider.OLLAMA)
 
         llm.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -519,9 +493,7 @@ class TestCompatibilityFallbacks:
             '{"name": "test", "value": 1}'
         )
 
-        llm = LLMClient(
-            client=mock_client, default_model="llama-3.3-70b", provider=Provider.GROQ
-        )
+        llm = LLMClient(client=mock_client, default_model="llama-3.3-70b", provider=Provider.GROQ)
 
         llm.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -531,17 +503,11 @@ class TestCompatibilityFallbacks:
 
         assert any("strict mode" in r["message"] for r in capture_logs)
 
-    def test_json_schema_strict_downgraded_for_together(
-        self, mock_client: Mock, capture_logs
-    ):
+    def test_json_schema_strict_downgraded_for_together(self, mock_client: Mock, capture_logs):
         """json_schema_strict should downgrade to json_schema for Together."""
-        mock_client.chat.completions.create.return_value = _make_completion(
-            '{"key": "value"}'
-        )
+        mock_client.chat.completions.create.return_value = _make_completion('{"key": "value"}')
 
-        llm = LLMClient(
-            client=mock_client, default_model="llama-3.3", provider=Provider.TOGETHER
-        )
+        llm = LLMClient(client=mock_client, default_model="llama-3.3", provider=Provider.TOGETHER)
 
         llm.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -562,9 +528,7 @@ class TestCompatibilityFallbacks:
             [("call_1", "ToolSchema", {"query": "test"})]
         )
 
-        llm = LLMClient(
-            client=mock_client, default_model="llama-3.3-70b", provider=Provider.GROQ
-        )
+        llm = LLMClient(client=mock_client, default_model="llama-3.3-70b", provider=Provider.GROQ)
 
         llm.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -574,9 +538,7 @@ class TestCompatibilityFallbacks:
 
         assert any("strict mode" in r["message"] for r in capture_logs)
 
-    def test_json_schema_fallback_to_text_with_prompt(
-        self, mock_client: Mock, capture_logs
-    ):
+    def test_json_schema_fallback_to_text_with_prompt(self, mock_client: Mock, capture_logs):
         """Providers without json_schema should use text + schema in prompt."""
         mock_client.chat.completions.create.return_value = _make_completion(
             '{"name": "test", "value": 1}'
@@ -625,9 +587,7 @@ class TestCompatibilityFallbacks:
             '{"name": "test", "value": 1}'
         )
 
-        llm = LLMClient(
-            client=mock_client, default_model="gpt-4o", provider=Provider.OPENAI
-        )
+        llm = LLMClient(client=mock_client, default_model="gpt-4o", provider=Provider.OPENAI)
 
         llm.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -647,9 +607,7 @@ class TestCompatibilityFallbacks:
             '{"name": "test", "value": 1}'
         )
 
-        llm = LLMClient(
-            client=mock_client, default_model="llama3.2", provider=Provider.OLLAMA
-        )
+        llm = LLMClient(client=mock_client, default_model="llama3.2", provider=Provider.OLLAMA)
 
         llm.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -667,9 +625,7 @@ class TestCompatibilityFallbacks:
             '{"name": "test", "value": 1}'
         )
 
-        llm = LLMClient(
-            client=mock_client, default_model="llama3.2", provider=Provider.OLLAMA
-        )
+        llm = LLMClient(client=mock_client, default_model="llama3.2", provider=Provider.OLLAMA)
 
         llm.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -688,9 +644,7 @@ class TestCompatibilityFallbacks:
 class TestFallbackConvertOriginal:
     """Tests for fallback_convert_original feature."""
 
-    def test_pydantic_fallback_to_text_converts_back(
-        self, mock_client: Mock, capture_logs
-    ):
+    def test_pydantic_fallback_to_text_converts_back(self, mock_client: Mock, capture_logs):
         """When pydantic mode falls back to text, response should still be parsed as pydantic."""
         mock_client.chat.completions.create.return_value = _make_completion(
             '{"name": "test", "value": 42}'
@@ -716,9 +670,7 @@ class TestFallbackConvertOriginal:
         assert response.parsed.value == 42
         assert any("json_schema" in r["message"] for r in capture_logs)
 
-    def test_pydantic_fallback_disabled_returns_text(
-        self, mock_client: Mock, capture_logs
-    ):
+    def test_pydantic_fallback_disabled_returns_text(self, mock_client: Mock, capture_logs):
         """When fallback_convert_original=False, downgraded mode returns TextResponse."""
         mock_client.chat.completions.create.return_value = _make_completion(
             '{"name": "test", "value": 42}'
@@ -742,9 +694,7 @@ class TestFallbackConvertOriginal:
         assert response.content == '{"name": "test", "value": 42}'
         assert any("json_schema" in r["message"] for r in capture_logs)
 
-    def test_json_schema_fallback_to_text_converts_back(
-        self, mock_client: Mock, capture_logs
-    ):
+    def test_json_schema_fallback_to_text_converts_back(self, mock_client: Mock, capture_logs):
         """When json_schema mode falls back to text, response should still be parsed as JSON."""
         mock_client.chat.completions.create.return_value = _make_completion(
             '{"key": "value", "count": 123}'
@@ -771,9 +721,7 @@ class TestFallbackConvertOriginal:
         assert response.parsed == {"key": "value", "count": 123}
         assert any("json_schema" in r["message"] for r in capture_logs)
 
-    def test_fallback_with_invalid_json_raises_error(
-        self, mock_client: Mock, capture_logs
-    ):
+    def test_fallback_with_invalid_json_raises_error(self, mock_client: Mock, capture_logs):
         """When fallback conversion fails due to invalid JSON, should raise LLMParsingError."""
         mock_client.chat.completions.create.return_value = _make_completion(
             "This is not JSON at all"
@@ -795,9 +743,7 @@ class TestFallbackConvertOriginal:
 
         assert any("json_schema" in r["message"] for r in capture_logs)
 
-    def test_fallback_with_invalid_schema_raises_error(
-        self, mock_client: Mock, capture_logs
-    ):
+    def test_fallback_with_invalid_schema_raises_error(self, mock_client: Mock, capture_logs):
         """When fallback conversion fails due to schema mismatch, should raise LLMParsingError."""
         # Valid JSON but doesn't match SimpleSchema (missing 'value' field)
         mock_client.chat.completions.create.return_value = _make_completion(
@@ -820,17 +766,13 @@ class TestFallbackConvertOriginal:
 
         assert any("json_schema" in r["message"] for r in capture_logs)
 
-    def test_strict_downgrade_does_not_trigger_conversion(
-        self, mock_client: Mock, capture_logs
-    ):
+    def test_strict_downgrade_does_not_trigger_conversion(self, mock_client: Mock, capture_logs):
         """When strict->non-strict (same category), no conversion needed."""
         mock_client.chat.completions.create.return_value = _make_completion(
             '{"name": "test", "value": 42}'
         )
 
-        llm = LLMClient(
-            client=mock_client, default_model="llama-3.3-70b", provider=Provider.GROQ
-        )
+        llm = LLMClient(client=mock_client, default_model="llama-3.3-70b", provider=Provider.GROQ)
 
         response = llm.generate(
             messages=[{"role": "user", "content": "Hi"}],
@@ -843,9 +785,7 @@ class TestFallbackConvertOriginal:
         assert response.parsed.name == "test"
         assert any("strict mode" in r["message"] for r in capture_logs)
 
-    def test_text_mode_schema_injection_for_fallback(
-        self, mock_client: Mock, capture_logs
-    ):
+    def test_text_mode_schema_injection_for_fallback(self, mock_client: Mock, capture_logs):
         """When mode falls back to text, schema should still be injected in prompt."""
         mock_client.chat.completions.create.return_value = _make_completion(
             '{"name": "test", "value": 42}'

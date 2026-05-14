@@ -59,9 +59,7 @@ class NLTool(BaseTool[NLInput, NLToolResult]):
         NLToolResult(success=True, result="...", stage="complete"),
         NLToolResult(
             success=False,
-            error=LLMError(
-                error="...", type_of_error="...", content="...", suggested_fix="..."
-            ),
+            error=LLMError(error="...", type_of_error="...", content="...", suggested_fix="..."),
             stage="input_parsing",
         ),
     )
@@ -95,9 +93,7 @@ class NLTool(BaseTool[NLInput, NLToolResult]):
         # Step 1: Parse natural language to tool input
         input_result = self.llm_input_wrapper.invoke(validated)
         if not input_result.success or input_result.error:
-            return NLToolResult(
-                success=False, error=input_result.error, stage="input_parsing"
-            )
+            return NLToolResult(success=False, error=input_result.error, stage="input_parsing")
 
         # Get validated tool input
         tool_input = self.llm_input_wrapper.get_tool_input(input_result)
@@ -129,15 +125,11 @@ class NLTool(BaseTool[NLInput, NLToolResult]):
             )
 
         # Step 3: Format the output
-        output_wrapper = FormatToolOutput(
-            self.tool, input.task, self.llm_client, self._model
-        )
+        output_wrapper = FormatToolOutput(self.tool, input.task, self.llm_client, self._model)
         output_result = output_wrapper.invoke(raw_output)
 
         if not output_result.success or output_result.error:
-            return NLToolResult(
-                success=False, error=output_result.error, stage="output_formatting"
-            )
+            return NLToolResult(success=False, error=output_result.error, stage="output_formatting")
 
         return NLToolResult(success=True, result=output_result.result, stage="complete")
 
@@ -148,9 +140,7 @@ class NLTool(BaseTool[NLInput, NLToolResult]):
         # Step 1: Parse natural language to tool input
         input_result = await self.llm_input_wrapper.ainvoke(validated)
         if not input_result.success or input_result.error:
-            return NLToolResult(
-                success=False, error=input_result.error, stage="input_parsing"
-            )
+            return NLToolResult(success=False, error=input_result.error, stage="input_parsing")
 
         # Get validated tool input
         tool_input = self.llm_input_wrapper.get_tool_input(input_result)
@@ -182,15 +172,11 @@ class NLTool(BaseTool[NLInput, NLToolResult]):
             )
 
         # Step 3: Format the output
-        output_wrapper = FormatToolOutput(
-            self.tool, input.task, self.llm_client, self._model
-        )
+        output_wrapper = FormatToolOutput(self.tool, input.task, self.llm_client, self._model)
         output_result = await output_wrapper.ainvoke(raw_output)
 
         if not output_result.success or output_result.error:
-            return NLToolResult(
-                success=False, error=output_result.error, stage="output_formatting"
-            )
+            return NLToolResult(success=False, error=output_result.error, stage="output_formatting")
 
         return NLToolResult(success=True, result=output_result.result, stage="complete")
 
@@ -204,8 +190,7 @@ class ToolWithFormatterResult(NLOutput):
     stage: str = Field(
         default="complete",
         description=(
-            "Stage where error occurred: 'tool_execution', 'output_formatting', "
-            "or 'complete'"
+            "Stage where error occurred: 'tool_execution', 'output_formatting', or 'complete'"
         ),
     )
 
@@ -224,9 +209,7 @@ class ToolWithFormatter(BaseTool[ToolInputT, ToolWithFormatterResult]):
         ToolWithFormatterResult(success=True, result="...", stage="complete"),
         ToolWithFormatterResult(
             success=False,
-            error=LLMError(
-                error="...", type_of_error="...", content="...", suggested_fix="..."
-            ),
+            error=LLMError(error="...", type_of_error="...", content="...", suggested_fix="..."),
             stage="tool_execution",
         ),
     )
@@ -270,9 +253,7 @@ class ToolWithFormatter(BaseTool[ToolInputT, ToolWithFormatterResult]):
             )
 
         # Step 2: Format the output
-        output_wrapper = FormatToolOutput(
-            self.tool, self.task, self.llm_client, self._model
-        )
+        output_wrapper = FormatToolOutput(self.tool, self.task, self.llm_client, self._model)
         output_result = output_wrapper.invoke(raw_output)
 
         if not output_result.success or output_result.error:
@@ -308,9 +289,7 @@ class ToolWithFormatter(BaseTool[ToolInputT, ToolWithFormatterResult]):
             )
 
         # Step 2: Format the output
-        output_wrapper = FormatToolOutput(
-            self.tool, self.task, self.llm_client, self._model
-        )
+        output_wrapper = FormatToolOutput(self.tool, self.task, self.llm_client, self._model)
         output_result = await output_wrapper.ainvoke(raw_output)
 
         if not output_result.success or output_result.error:

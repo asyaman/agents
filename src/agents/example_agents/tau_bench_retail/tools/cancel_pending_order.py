@@ -32,9 +32,7 @@ class CancelPendingOrder(Tool):
             }
             refunds.append(refund)
             if "gift_card" in payment_id:  # refund to gift card immediately
-                payment_method = data["users"][order["user_id"]]["payment_methods"][
-                    payment_id
-                ]
+                payment_method = data["users"][order["user_id"]]["payment_methods"][payment_id]
                 payment_method["balance"] += payment["amount"]
                 payment_method["balance"] = round(payment_method["balance"], 2)
 

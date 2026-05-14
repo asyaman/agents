@@ -5,8 +5,8 @@ Uses environment variables with sensible defaults.
 Minimal configuration - only what's needed for Chainlit + AgentTool.
 """
 
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 
 from pydantic import Field
 from pydantic_settings import BaseSettings

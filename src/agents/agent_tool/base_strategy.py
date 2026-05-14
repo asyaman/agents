@@ -99,9 +99,9 @@ class PlanningStrategy(ABC):
             plan_state: Durable plan state for this run, owned by AgentTool.
                 Strategies may READ this to compose their prompts (e.g., re-inject
                 the plan as data). Strategies MUST NOT mutate plan_state directly;
-                mutation is reserved for the planstate_update tool (model-driven)
-                and AgentTool's auto-status-update convention. Pass `None` if the
-                strategy is plan-state-agnostic.
+                mutation is reserved for the planstate_update tool (model-driven).
+                The framework does NOT auto-mutate plan_state from tool results.
+                Pass `None` if the strategy is plan-state-agnostic.
 
         Returns:
             StrategyOutput with the per-turn delta. Termination is implicit:

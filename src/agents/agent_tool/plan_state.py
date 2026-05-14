@@ -4,9 +4,11 @@ PlanStateUpdate tool.
 
 Design notes:
 - Created per `AgentTool.ainvoke()` call; not held by AgentTool across runs.
-- Mutated only via the PlanStateUpdate tool (model-driven) and the
-  auto-status-update convention in `_execute_tool_calls`. Strategies receive
-  it by reference but must not mutate it directly.
+- Mutated ONLY via the PlanStateUpdate tool (model-driven). The framework
+  does NOT mutate plan_state from tool results — the model reconciles
+  every action batch via `planstate_update` (see decision tree in the
+  planner prompt). Strategies receive it by reference but must not
+  mutate it directly.
 - Passed explicitly to `Strategy.plan(plan_state=...)` as a parameter.
 - Sub-agents (SubAgentTool) get their own isolated PlanState because each
   ainvoke creates a new one.
@@ -18,20 +20,20 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field, field_validator
 
 TaskStatus = Literal[
-    "pending",      # not started
+    "pending",  # not started
     "in_progress",  # currently executing (exactly one task should be in_progress)
-    "completed",    # finished successfully
-    "failed",       # tried, did not succeed; result contains error description
-    "blocked",      # cannot proceed (e.g., missing data, dependency failed)
-    "cancelled",    # superseded by re-plan; kept for audit
+    "completed",  # finished successfully
+    "failed",  # tried, did not succeed; result contains error description
+    "blocked",  # cannot proceed (e.g., missing data, dependency failed)
+    "cancelled",  # superseded by re-plan; kept for audit
 ]
 
 PlanStatus = Literal[
-    "draft",       # plan exists but no task has started yet
-    "active",      # at least one task has been in_progress
-    "completed",   # plan finished successfully (all required tasks completed)
-    "failed",      # plan terminated with failure
-    "blocked",     # cannot proceed; needs external input
+    "draft",  # plan exists but no task has started yet
+    "active",  # at least one task has been in_progress
+    "completed",  # plan finished successfully (all required tasks completed)
+    "failed",  # plan terminated with failure
+    "blocked",  # cannot proceed; needs external input
 ]
 
 
@@ -43,12 +45,16 @@ class TaskState(BaseModel):
     inputs: dict[str, Any] | None = Field(
         default=None,
         description=(
-            "Materialized kwargs for the tool call(s) this task implies. "
-            "MUST be a JSON OBJECT whose keys are the downstream tool's "
-            "argument names. Example: for a task that calls "
-            "send_email(to=..., subject=...), set "
-            "inputs={\"to\": \"a@b.com\", \"subject\": \"Hi\"}. "
-            "Do NOT pass a bare scalar like the value of one argument."
+            "RETROSPECTIVE audit field. Leave as None while the task is "
+            "`pending` or `in_progress`. Populated during reconciliation "
+            "(after the task's tool has run) with the EXACT call args "
+            "used at dispatch — read them from the tool message in "
+            "history. Together with `result`, this is the audit pair "
+            "for 'we called this with these args and got this back.' "
+            "If set, MUST be a JSON OBJECT (never a bare scalar). The "
+            "framework does NOT use this field for matching or "
+            "auto-update — all `plan_state` mutations are driven by "
+            "the model via `planstate_update`."
         ),
     )
 
@@ -72,7 +78,7 @@ class TaskState(BaseModel):
 
         LLMs often mistakenly paste a previous tool's parsed output back into
         a text field (e.g., setting `result` to `{"foo": "bar"}` instead of
-        the JSON-stringified form Phase D's auto-update writes). Rather than
+        a JSON-stringified form). Rather than
         failing validation and bouncing the run, we serialize the value to
         a string so the run survives. The model still gets clearer plain
         text to read on the next turn.
@@ -82,18 +88,15 @@ class TaskState(BaseModel):
         if isinstance(v, (dict, list)):
             return json.dumps(v)
         return str(v)
+
     status: TaskStatus = "pending"
     result: str | None = Field(
         default=None,
-        description=(
-            "Final output as text, or error description if status == 'failed'."
-        ),
+        description=("Final output as text, or error description if status == 'failed'."),
     )
     depends_on: list[int] = Field(
         default_factory=list,
-        description=(
-            "IDs of tasks that must reach 'completed' before this task can start."
-        ),
+        description=("IDs of tasks that must reach 'completed' before this task can start."),
     )
     parent_attempt_id: int | None = Field(
         default=None,
@@ -120,7 +123,7 @@ class PlanState(BaseModel):
         Convenience for the common case where a single task is in flight.
         When multiple tasks are in_progress (a parallel batch fan-out),
         returns the FIRST one in insertion order. Use `in_progress_tasks()`
-        when you need the full set (e.g., Phase D auto-pairing).
+        when you need the full set.
         """
         tasks = self.in_progress_tasks()
         return tasks[0] if tasks else None
@@ -154,9 +157,7 @@ class PlanState(BaseModel):
             ready = [
                 t
                 for t in remaining
-                if all(
-                    dep in placed or dep not in by_id for dep in t.depends_on
-                )
+                if all(dep in placed or dep not in by_id for dep in t.depends_on)
             ]
             if not ready:
                 # Cycle or unreachable subgraph — emit leftovers in id order.
@@ -186,8 +187,6 @@ class PlanState(BaseModel):
             deps = f" [depends on: {t.depends_on}]" if t.depends_on else ""
             inputs = f"\n      inputs={t.inputs}" if t.inputs else ""
             result = f"\n      result={t.result[:200]}" if t.result else ""
-            lines.append(
-                f"  [{t.id}] {t.status.upper():<12} {t.objective}{deps}{inputs}{result}"
-            )
+            lines.append(f"  [{t.id}] {t.status.upper():<12} {t.objective}{deps}{inputs}{result}")
         lines.append(f"\n(plan revision {self.revision_count})")
         return "\n".join(lines)

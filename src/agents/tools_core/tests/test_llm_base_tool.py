@@ -23,9 +23,7 @@ class SummarizeTool(LLMTool[SummarizeInput, SummarizeOutput]):
     _input = SummarizeInput
     _output = SummarizeOutput
 
-    def format_messages(
-        self, input: SummarizeInput
-    ) -> list[ChatCompletionMessageParam]:
+    def format_messages(self, input: SummarizeInput) -> list[ChatCompletionMessageParam]:
         return [
             {"role": "system", "content": "You are a summarizer."},
             {"role": "user", "content": f"Summarize: {input.text}"},
@@ -75,18 +73,14 @@ class TestLLMTool:
         assert call_kwargs["mode"] == "pydantic"
         assert call_kwargs["response_model"] is SummarizeOutput
 
-    def test_invoke_with_dict(
-        self, summarize_tool: SummarizeTool, mock_llm_client: MagicMock
-    ):
+    def test_invoke_with_dict(self, summarize_tool: SummarizeTool, mock_llm_client: MagicMock):
         result = summarize_tool({"text": "Test text"})
 
         assert result == SummarizeOutput(summary="This is a summary.")
         mock_llm_client.generate.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_ainvoke(
-        self, summarize_tool: SummarizeTool, mock_llm_client: MagicMock
-    ):
+    async def test_ainvoke(self, summarize_tool: SummarizeTool, mock_llm_client: MagicMock):
         result = await summarize_tool.ainvoke(SummarizeInput(text="Test text"))
 
         assert result == SummarizeOutput(summary="This is a summary.")

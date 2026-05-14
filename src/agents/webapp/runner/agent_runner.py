@@ -222,12 +222,9 @@ class AgentRunner:
 
         # Validate at least one client is configured
         if not any(
-            f"{role}_client" in factory_settings
-            for role in ("tool", "action", "reasoning")
+            f"{role}_client" in factory_settings for role in ("tool", "action", "reasoning")
         ):
-            raise ValueError(
-                "AgentConfig must define at least one LLM client in llm_clients"
-            )
+            raise ValueError("AgentConfig must define at least one LLM client in llm_clients")
 
         # Create base agent from factory
         agent = self.config.agent_factory(**factory_settings)

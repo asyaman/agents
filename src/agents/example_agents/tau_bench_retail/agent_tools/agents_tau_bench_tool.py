@@ -41,23 +41,17 @@ def create_tau_bench_tool(
     if example_input:
         examples_in = tuple(example_input)
     else:
-        examples_in = (
-            input_model(**create_example_from_schema(json_schema=input_model_schema)),
-        )
+        examples_in = (input_model(**create_example_from_schema(json_schema=input_model_schema)),)
 
     if example_outputs:
         examples_out = tuple(example_outputs)
     else:
         examples_out = (
-            DefaultOutput(
-                **create_example_from_schema(DefaultOutput.model_json_schema())
-            ),
+            DefaultOutput(**create_example_from_schema(DefaultOutput.model_json_schema())),
         )
 
     # Define invoke method that captures the tool
-    def _invoke(
-        self: "BaseTool[BaseModel, DefaultOutput]", input: BaseModel
-    ) -> DefaultOutput:
+    def _invoke(self: "BaseTool[BaseModel, DefaultOutput]", input: BaseModel) -> DefaultOutput:
         validated = self._validate_input(input)
         result = tool.invoke(data=load_data(), **validated.model_dump())  # type: ignore
         return DefaultOutput(result=result)

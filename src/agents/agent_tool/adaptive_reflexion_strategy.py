@@ -150,15 +150,11 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
             return list(tools)
         return [t for t in tools if t.name.lower() != self.sub_agent_tool_name.lower()]
 
-    def _detect_failure(
-        self, messages: list[ChatCompletionMessageParam]
-    ) -> tuple[bool, str]:
+    def _detect_failure(self, messages: list[ChatCompletionMessageParam]) -> tuple[bool, str]:
         """Detect failure signals from recent messages."""
         failure_signals: list[str] = []
 
-        recent_tool_results = [
-            msg for msg in messages[-6:] if msg.get("role") == "tool"
-        ]
+        recent_tool_results = [msg for msg in messages[-6:] if msg.get("role") == "tool"]
 
         for msg in recent_tool_results:
             content = str(msg.get("content", ""))
@@ -265,9 +261,7 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
         if self._state.phase == AdaptivePhase.REFLECTING:
             if self._should_decompose() and can_decompose:
                 # Switch to decomposition
-                logger.info(
-                    "AdaptiveReflexion: Reflections exhausted, switching to decomposition"
-                )
+                logger.info("AdaptiveReflexion: Reflections exhausted, switching to decomposition")
                 self._state.phase = AdaptivePhase.DECOMPOSING
                 self._state.decomposition_triggered = True
             else:
@@ -292,9 +286,7 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
             )
 
         elif self._state.phase == AdaptivePhase.DECOMPOSING:
-            result = await self._execute_decomposition(
-                messages, tools, parallel_tool_calls
-            )
+            result = await self._execute_decomposition(messages, tools, parallel_tool_calls)
             self._state.phase = AdaptivePhase.EXECUTING_SUBTASKS
             return result
 
@@ -326,9 +318,7 @@ class AdaptiveReflexionStrategy(PlanningStrategy):
         if insight_context:
             action_messages.append({"role": "system", "content": insight_context})
 
-        action_messages.append(
-            {"role": "user", "content": _templates.action_prompt(tool_names)}
-        )
+        action_messages.append({"role": "user", "content": _templates.action_prompt(tool_names)})
 
         logger.debug(
             "AdaptiveReflexion: {} phase | insights={} | tools={}",

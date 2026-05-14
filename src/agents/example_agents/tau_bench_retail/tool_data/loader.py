@@ -88,9 +88,7 @@ def get_all_personas() -> tuple[Persona, ...]:
         try:
             personas.append(Persona.from_line(line.strip()))
         except AttributeError:
-            loguru.logger.warning(
-                f"Skipping persona due to parsing error: {line.strip()[:50]}..."
-            )
+            loguru.logger.warning(f"Skipping persona due to parsing error: {line.strip()[:50]}...")
     return tuple(personas)
 
 

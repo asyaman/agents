@@ -8,10 +8,10 @@ interactive UI elements instead of mock responses.
 
 from abc import abstractmethod
 from typing import Generic, TypeVar
+
 from pydantic import BaseModel
 
 from agents.tools_core.base_tool import BaseTool
-
 
 InputT = TypeVar("InputT", bound=BaseModel)
 OutputT = TypeVar("OutputT", bound=BaseModel)

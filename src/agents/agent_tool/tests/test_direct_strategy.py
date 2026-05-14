@@ -18,9 +18,7 @@ class TestDirectStrategy:
         assert strategy.direct_prompt is None
 
     def test_init_custom_direct_prompt(self, mock_llm_client: MagicMock):
-        strategy = DirectStrategy(
-            llm_client=mock_llm_client, direct_prompt="Custom prompt here"
-        )
+        strategy = DirectStrategy(llm_client=mock_llm_client, direct_prompt="Custom prompt here")
         assert strategy.direct_prompt == "Custom prompt here"
 
     @pytest.mark.asyncio
@@ -29,16 +27,10 @@ class TestDirectStrategy:
     ):
         """Test that custom direct_prompt is passed to LLM."""
         custom_prompt = "Execute the next action based on the objective."
-        strategy = DirectStrategy(
-            llm_client=mock_llm_client, direct_prompt=custom_prompt
-        )
+        strategy = DirectStrategy(llm_client=mock_llm_client, direct_prompt=custom_prompt)
 
         mock_llm_client.agenerate.return_value = ToolCallResponse(
-            tool_calls=[
-                ToolCall(
-                    id="test-id-1", tool_name="search", arguments={"query": "test"}
-                )
-            ]
+            tool_calls=[ToolCall(id="test-id-1", tool_name="search", arguments={"query": "test"})]
         )
 
         await strategy.plan(
@@ -54,19 +46,13 @@ class TestDirectStrategy:
         assert messages_arg[-1]["content"] == custom_prompt
 
     @pytest.mark.asyncio
-    async def test_plan_with_tool_calls(
-        self, mock_llm_client: MagicMock, search_tool: SearchTool
-    ):
+    async def test_plan_with_tool_calls(self, mock_llm_client: MagicMock, search_tool: SearchTool):
         """Test that tool calls are returned for execution."""
         strategy = DirectStrategy(llm_client=mock_llm_client)
 
         # Mock LLM returning a tool call
         mock_llm_client.agenerate.return_value = ToolCallResponse(
-            tool_calls=[
-                ToolCall(
-                    id="test-id-1", tool_name="search", arguments={"query": "test"}
-                )
-            ]
+            tool_calls=[ToolCall(id="test-id-1", tool_name="search", arguments={"query": "test"})]
         )
 
         result = await strategy.plan(

@@ -405,9 +405,7 @@ class TestGuidanceInjection:
 
         # Check that messages include guidance about delegate_subtask
         system_msgs = [
-            msg
-            for msg in result.execution_history[0].messages
-            if msg.get("role") == "system"
+            msg for msg in result.execution_history[0].messages if msg.get("role") == "system"
         ]
         # Should have more than 1 system message when guidance is included
         assert len(system_msgs) >= 2
@@ -438,9 +436,7 @@ class TestGuidanceInjection:
 
         # Check that there's only 1 system message (no guidance)
         system_msgs = [
-            msg
-            for msg in result.execution_history[0].messages
-            if msg.get("role") == "system"
+            msg for msg in result.execution_history[0].messages if msg.get("role") == "system"
         ]
         assert len(system_msgs) == 1
 
@@ -468,8 +464,6 @@ class TestGuidanceInjection:
 
         # SubAgentTool not included when max_depth=1, so no guidance
         system_msgs = [
-            msg
-            for msg in result.execution_history[0].messages
-            if msg.get("role") == "system"
+            msg for msg in result.execution_history[0].messages if msg.get("role") == "system"
         ]
         assert len(system_msgs) == 1

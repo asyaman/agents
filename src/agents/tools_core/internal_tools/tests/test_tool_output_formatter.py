@@ -17,9 +17,7 @@ from agents.tools_core.internal_tools.tool_output_formatter import (
 
 
 class TestFormatToolOutput:
-    def test_name_and_description(
-        self, simple_tool: SimpleTool, mock_llm_client: MagicMock
-    ):
+    def test_name_and_description(self, simple_tool: SimpleTool, mock_llm_client: MagicMock):
         wrapper = FormatToolOutput(simple_tool, "Test task", mock_llm_client)
         assert wrapper.name == "LLM_FORMAT_SIMPLE_TOOL"
         assert "format" in wrapper.description.lower()
@@ -37,16 +35,12 @@ class TestFormatToolOutput:
 
 
 class TestSimplifyToolOutput:
-    def test_name_and_description(
-        self, simple_tool: SimpleTool, mock_llm_client: MagicMock
-    ):
+    def test_name_and_description(self, simple_tool: SimpleTool, mock_llm_client: MagicMock):
         simplifier = SimplifyToolOutput(simple_tool, "Test task", mock_llm_client)
         assert "simplify" in simplifier.name.lower()
         assert "simplif" in simplifier.description.lower()
 
-    def test_default_thresholds(
-        self, simple_tool: SimpleTool, mock_llm_client: MagicMock
-    ):
+    def test_default_thresholds(self, simple_tool: SimpleTool, mock_llm_client: MagicMock):
         simplifier = SimplifyToolOutput(simple_tool, "Test task", mock_llm_client)
         assert simplifier.token_lower_bound == 5000
         assert simplifier.token_upper_bound == 90000
@@ -54,9 +48,7 @@ class TestSimplifyToolOutput:
         assert simplifier.chunk_overlap == 1000
         assert simplifier.parallel_chunks is True
 
-    def test_custom_thresholds(
-        self, simple_tool: SimpleTool, mock_llm_client: MagicMock
-    ):
+    def test_custom_thresholds(self, simple_tool: SimpleTool, mock_llm_client: MagicMock):
         simplifier = SimplifyToolOutput(
             simple_tool,
             "Test task",
@@ -124,9 +116,7 @@ class TestSimplifyToolOutput:
         assert "Test task" in content
         assert "Test result" in content
 
-    def test_format_chunk_messages(
-        self, simple_tool: SimpleTool, mock_llm_client: MagicMock
-    ):
+    def test_format_chunk_messages(self, simple_tool: SimpleTool, mock_llm_client: MagicMock):
         simplifier = SimplifyToolOutput(simple_tool, "Test task", mock_llm_client)
         messages = simplifier._format_chunk_messages("chunk content here")
 

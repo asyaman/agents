@@ -36,9 +36,7 @@ class ReflectionInsight(BaseModel):
     iteration: int = Field(description="Which iteration this insight came from")
     failure_description: str = Field(description="What went wrong")
     insight: str = Field(description="What was learned / how to avoid this")
-    tool_involved: str | None = Field(
-        default=None, description="Tool that failed, if any"
-    )
+    tool_involved: str | None = Field(default=None, description="Tool that failed, if any")
 
 
 @dataclass
@@ -183,9 +181,7 @@ class ReflexionStrategy(PlanningStrategy):
         failure_signals: list[str] = []
 
         # Look at recent tool results (last few messages)
-        recent_tool_results = [
-            msg for msg in messages[-6:] if msg.get("role") == "tool"
-        ]
+        recent_tool_results = [msg for msg in messages[-6:] if msg.get("role") == "tool"]
 
         for msg in recent_tool_results:
             content = str(msg.get("content", ""))
@@ -293,9 +289,7 @@ class ReflexionStrategy(PlanningStrategy):
                 )
 
             # Generate and store reflection
-            insight = await self._generate_reflection(
-                messages, self._last_failure_context
-            )
+            insight = await self._generate_reflection(messages, self._last_failure_context)
             self.memory.add_insight(insight, persist=self.persist_insights)
             self.memory.consecutive_failures += 1
 
@@ -317,9 +311,7 @@ class ReflexionStrategy(PlanningStrategy):
         if insight_context:
             action_messages.append({"role": "system", "content": insight_context})
 
-        action_messages.append(
-            {"role": "user", "content": self._get_action_prompt(tool_names)}
-        )
+        action_messages.append({"role": "user", "content": self._get_action_prompt(tool_names)})
 
         logger.debug(
             "Reflexion: Action phase | iteration={} | insights={}",
@@ -344,10 +336,7 @@ class ReflexionStrategy(PlanningStrategy):
         # Termination paths: empty tool_calls (strategy-internal) OR a finish
         # tool was emitted (AgentTool will terminate after execution).
         finish_tc = next(
-            (
-                tc for tc in result.tool_calls
-                if tc.tool_name.upper() == "FINISH"
-            ),
+            (tc for tc in result.tool_calls if tc.tool_name.upper() == "FINISH"),
             None,
         )
         is_terminating = (not result.tool_calls) or (finish_tc is not None)

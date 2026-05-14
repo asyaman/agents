@@ -14,9 +14,7 @@ from agents.tools_core.internal_tools.tool_input_parser import (
 
 
 class TestParseToolInput:
-    def test_name_and_description(
-        self, simple_tool: SimpleTool, mock_llm_client: MagicMock
-    ):
+    def test_name_and_description(self, simple_tool: SimpleTool, mock_llm_client: MagicMock):
         wrapper = ParseToolInput(simple_tool, mock_llm_client)
         assert wrapper.name == "LLM_SIMPLE_TOOL"
         assert "SIMPLE_TOOL" in wrapper.description
@@ -32,9 +30,7 @@ class TestParseToolInput:
         assert "Find something" in content
         assert "Test context" in content
 
-    def test_get_tool_input_success(
-        self, simple_tool: SimpleTool, mock_llm_client: MagicMock
-    ):
+    def test_get_tool_input_success(self, simple_tool: SimpleTool, mock_llm_client: MagicMock):
         wrapper = ParseToolInput(simple_tool, mock_llm_client)
         result = ParseResult(success=True, tool_input={"query": "test"})
         tool_input = wrapper.get_tool_input(result)
@@ -43,9 +39,7 @@ class TestParseToolInput:
         assert isinstance(tool_input, SimpleInput)
         assert tool_input.query == "test"
 
-    def test_get_tool_input_failure(
-        self, simple_tool: SimpleTool, mock_llm_client: MagicMock
-    ):
+    def test_get_tool_input_failure(self, simple_tool: SimpleTool, mock_llm_client: MagicMock):
         wrapper = ParseToolInput(simple_tool, mock_llm_client)
         result = ParseResult(success=False, error=None)
         tool_input = wrapper.get_tool_input(result)

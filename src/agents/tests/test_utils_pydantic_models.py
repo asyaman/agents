@@ -459,9 +459,7 @@ def test_default_and_required_combination(val: dict[str, t.Any], cond: t.Any):
         ({"anyOf": [{"type": "string"}]}, "...", None),
     ],
 )
-def test_convert_type_to_sample(
-    schema: dict[str, t.Any], expected: t.Any, mock_patch: t.Any
-):
+def test_convert_type_to_sample(schema: dict[str, t.Any], expected: t.Any, mock_patch: t.Any):
     if mock_patch:
         with mock_patch:
             result = convert_type_to_sample(schema)

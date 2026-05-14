@@ -1,6 +1,5 @@
 """Tests for PlanState, TaskState, and the in_progress invariant."""
 
-
 from agents.agent_tool.plan_state import PlanState, TaskState
 
 
@@ -137,12 +136,17 @@ class TestPlanStateSerializeForPrompt:
         plan = PlanState(
             objective="Process users",
             tasks=[
-                TaskState(id=1, objective="Fetch users", status="completed",
-                          result="found 3 users"),
-                TaskState(id=2, objective="Process user 1", status="in_progress",
-                          inputs={"user_id": 1}, depends_on=[1]),
-                TaskState(id=3, objective="Process user 2", status="pending",
-                          depends_on=[1]),
+                TaskState(
+                    id=1, objective="Fetch users", status="completed", result="found 3 users"
+                ),
+                TaskState(
+                    id=2,
+                    objective="Process user 1",
+                    status="in_progress",
+                    inputs={"user_id": 1},
+                    depends_on=[1],
+                ),
+                TaskState(id=3, objective="Process user 2", status="pending", depends_on=[1]),
             ],
             status="active",
             revision_count=2,
@@ -184,9 +188,7 @@ class TestPlanStateSerializeForPrompt:
             objective="goal",
             tasks=[
                 TaskState(id=1, objective="produce", status="completed"),
-                TaskState(
-                    id=2, objective="verify", status="completed", depends_on=[1]
-                ),
+                TaskState(id=2, objective="verify", status="completed", depends_on=[1]),
                 TaskState(
                     id=3,
                     objective="use",
@@ -217,13 +219,7 @@ class TestPlanStateSerializeForPrompt:
         # The serialized output should reflect the same order.
         s = plan.serialize_for_prompt()
         positions = {tid: s.index(f"[{tid}]") for tid in ordered_ids}
-        assert (
-            positions[1]
-            < positions[4]
-            < positions[2]
-            < positions[5]
-            < positions[3]
-        )
+        assert positions[1] < positions[4] < positions[2] < positions[5] < positions[3]
 
     def test_display_order_falls_back_to_id_on_cycle(self):
         """A circular depends_on shouldn't crash serialization."""

@@ -50,9 +50,7 @@ class TestReactStrategy:
             TextResponse(content="I should search for information first."),
             ToolCallResponse(
                 tool_calls=[
-                    ToolCall(
-                        id="test-id-1", tool_name="search", arguments={"query": "test"}
-                    )
+                    ToolCall(id="test-id-1", tool_name="search", arguments={"query": "test"})
                 ]
             ),
         ]
@@ -173,11 +171,7 @@ class TestReactStrategyAutoTranslate:
             ),
             # Phase 2: action
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(
-                        id="a1", tool_name="search", arguments={"query": "x"}
-                    )
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -207,16 +201,12 @@ class TestReactStrategyAutoTranslate:
         )
         ps_tool = PlanStateUpdate(plan_state=plan_state)
 
-        strategy = ReactStrategy(
-            action_client=mock_llm_client, auto_translate_plan=False
-        )
+        strategy = ReactStrategy(action_client=mock_llm_client, auto_translate_plan=False)
 
         mock_llm_client.agenerate.side_effect = [
             TextResponse(content="reasoning"),
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(id="a1", tool_name="search", arguments={"query": "x"})
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -238,7 +228,7 @@ class TestReactStrategyAutoTranslate:
     ):
         """If the planstate_update tool isn't in `tools`, the translator stage
         is silently skipped (e.g., AgentTool was constructed with
-        include_planstate_update_tool=False)."""
+        enable_plan_state=False)."""
         plan_state = PlanState(
             objective="goal",
             tasks=[TaskState(id=1, objective="x", status="pending")],
@@ -250,9 +240,7 @@ class TestReactStrategyAutoTranslate:
         mock_llm_client.agenerate.side_effect = [
             TextResponse(content="reasoning"),
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(id="a1", tool_name="search", arguments={"query": "x"})
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -290,9 +278,7 @@ class TestReactStrategyAutoTranslate:
             ToolCallResponse(tool_calls=[]),
             # Action
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(id="a1", tool_name="search", arguments={"query": "x"})
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -339,9 +325,7 @@ class TestReactStrategyAutoTranslate:
                 ]
             ),
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(id="a1", tool_name="search", arguments={"query": "x"})
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -354,9 +338,7 @@ class TestReactStrategyAutoTranslate:
         # Inspect the action phase (3rd LLM call): its `tools` argument must
         # contain `search` but NOT `planstate_update`.
         action_call = mock_llm_client.agenerate.call_args_list[2]
-        action_tool_names = {
-            tool.name.upper() for tool in action_call.kwargs["tools"]
-        }
+        action_tool_names = {tool.name.upper() for tool in action_call.kwargs["tools"]}
         assert "SEARCH" in action_tool_names
         assert "PLANSTATE_UPDATE" not in action_tool_names
 
@@ -373,16 +355,12 @@ class TestReactStrategyAutoTranslate:
         )
         ps_tool = PlanStateUpdate(plan_state=plan_state)
 
-        strategy = ReactStrategy(
-            action_client=mock_llm_client, auto_translate_plan=False
-        )
+        strategy = ReactStrategy(action_client=mock_llm_client, auto_translate_plan=False)
 
         mock_llm_client.agenerate.side_effect = [
             TextResponse(content="reasoning"),
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(id="a1", tool_name="search", arguments={"query": "x"})
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -395,9 +373,7 @@ class TestReactStrategyAutoTranslate:
         # Action call (2nd) — no translator step, so planstate_update stays
         # available so the model can manage plan_state itself.
         action_call = mock_llm_client.agenerate.call_args_list[1]
-        action_tool_names = {
-            tool.name.upper() for tool in action_call.kwargs["tools"]
-        }
+        action_tool_names = {tool.name.upper() for tool in action_call.kwargs["tools"]}
         assert "PLANSTATE_UPDATE" in action_tool_names
 
     @pytest.mark.asyncio
@@ -416,9 +392,7 @@ class TestReactStrategyAutoTranslate:
             tasks=[TaskState(id=1, objective="x", status="in_progress")]
         )
 
-        strategy = ReactStrategy(
-            action_client=mock_llm_client, plan_translator_max_retries=2
-        )
+        strategy = ReactStrategy(action_client=mock_llm_client, plan_translator_max_retries=2)
 
         # Reasoning, translator-fail (parse_error), translator-retry-success, action
         mock_llm_client.agenerate.side_effect = [
@@ -445,9 +419,7 @@ class TestReactStrategyAutoTranslate:
                 ]
             ),
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(id="a1", tool_name="search", arguments={"query": "x"})
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -484,9 +456,7 @@ class TestReactStrategyAutoTranslate:
         )
         ps_tool = PlanStateUpdate(plan_state=plan_state)
 
-        strategy = ReactStrategy(
-            action_client=mock_llm_client, plan_translator_max_retries=1
-        )
+        strategy = ReactStrategy(action_client=mock_llm_client, plan_translator_max_retries=1)
 
         bad = ToolCallResponse(
             tool_calls=[
@@ -506,9 +476,7 @@ class TestReactStrategyAutoTranslate:
             bad,  # retry also fails (max_retries=1 → 2 total attempts)
             # action still runs even though translation failed
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(id="a1", tool_name="search", arguments={"query": "x"})
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -536,17 +504,13 @@ class TestReactStrategyAutoTranslate:
         )
         ps_tool = PlanStateUpdate(plan_state=plan_state)
 
-        strategy = ReactStrategy(
-            action_client=mock_llm_client, plan_translator_max_retries=3
-        )
+        strategy = ReactStrategy(action_client=mock_llm_client, plan_translator_max_retries=3)
 
         mock_llm_client.agenerate.side_effect = [
             TextResponse(content="reasoning"),
             ToolCallResponse(tool_calls=[]),  # translator: no change
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(id="a1", tool_name="search", arguments={"query": "x"})
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -594,9 +558,7 @@ class TestReactStrategyAutoTranslate:
                 ]
             ),
             ToolCallResponse(
-                tool_calls=[
-                    ToolCall(id="a1", tool_name="search", arguments={"query": "x"})
-                ]
+                tool_calls=[ToolCall(id="a1", tool_name="search", arguments={"query": "x"})]
             ),
         ]
 
@@ -613,8 +575,7 @@ class TestReactStrategyAutoTranslate:
         plan_blocks = [
             m["content"]
             for m in action_messages
-            if m.get("role") == "system"
-            and "Current Plan State" in m.get("content", "")
+            if m.get("role") == "system" and "Current Plan State" in m.get("content", "")
         ]
         assert plan_blocks, "Action phase missing plan_state block"
         assert "IN_PROGRESS" in plan_blocks[-1]

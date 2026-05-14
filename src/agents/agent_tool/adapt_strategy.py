@@ -113,9 +113,7 @@ class AdaptStrategy(PlanningStrategy):
             return self.direct_prompt
         return _templates.direct_prompt(tool_names=tool_names)
 
-    def _get_decomposition_prompt(
-        self, failure_reason: str, tool_names: list[str]
-    ) -> str:
+    def _get_decomposition_prompt(self, failure_reason: str, tool_names: list[str]) -> str:
         """Get prompt for decomposition phase."""
         if self.decomposition_prompt:
             return self.decomposition_prompt
@@ -124,9 +122,7 @@ class AdaptStrategy(PlanningStrategy):
             tool_names=tool_names,
         )
 
-    def _detect_failure(
-        self, messages: list[ChatCompletionMessageParam]
-    ) -> FailureSignal:
+    def _detect_failure(self, messages: list[ChatCompletionMessageParam]) -> FailureSignal:
         """
         Analyze message history for failure signals.
 
@@ -170,9 +166,7 @@ class AdaptStrategy(PlanningStrategy):
         if stagnation:
             reason_parts.append("execution appears stagnated")
         if self._direct_attempts >= self.max_direct_attempts:
-            reason_parts.append(
-                f"max direct attempts ({self.max_direct_attempts}) reached"
-            )
+            reason_parts.append(f"max direct attempts ({self.max_direct_attempts}) reached")
 
         return FailureSignal(
             detected=failure_detected,
@@ -187,9 +181,7 @@ class AdaptStrategy(PlanningStrategy):
         """Filter tools based on current phase."""
         if phase == AdaptPhase.DIRECT:
             # Exclude SubAgentTool during direct phase
-            return [
-                t for t in tools if t.name.lower() != self.sub_agent_tool_name.lower()
-            ]
+            return [t for t in tools if t.name.lower() != self.sub_agent_tool_name.lower()]
         else:
             # Include all tools during decomposition/execution
             return list(tools)

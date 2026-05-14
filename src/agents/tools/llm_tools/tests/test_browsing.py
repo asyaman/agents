@@ -265,14 +265,10 @@ class TestAgentLoop:
 
         tool = BrowsingTool(llm_client=mock_llm_client)
 
-        with patch(
-            "agents.tools.llm_tools.browsing.async_playwright"
-        ) as mock_playwright:
+        with patch("agents.tools.llm_tools.browsing.async_playwright") as mock_playwright:
             mock_pw_instance = MagicMock()
             mock_pw_instance.chromium.launch = AsyncMock(return_value=mock_browser)
-            mock_playwright.return_value.__aenter__ = AsyncMock(
-                return_value=mock_pw_instance
-            )
+            mock_playwright.return_value.__aenter__ = AsyncMock(return_value=mock_pw_instance)
             mock_playwright.return_value.__aexit__ = AsyncMock()
 
             result = await tool.ainvoke(
@@ -299,19 +295,13 @@ class TestAgentLoop:
 
         tool = BrowsingTool(llm_client=mock_llm_client)
 
-        with patch(
-            "agents.tools.llm_tools.browsing.async_playwright"
-        ) as mock_playwright:
+        with patch("agents.tools.llm_tools.browsing.async_playwright") as mock_playwright:
             mock_pw_instance = MagicMock()
             mock_pw_instance.chromium.launch = AsyncMock(return_value=mock_browser)
-            mock_playwright.return_value.__aenter__ = AsyncMock(
-                return_value=mock_pw_instance
-            )
+            mock_playwright.return_value.__aenter__ = AsyncMock(return_value=mock_pw_instance)
             mock_playwright.return_value.__aexit__ = AsyncMock()
 
-            result = await tool.ainvoke(
-                BrowsingToolInput(query="Find something", max_iterations=3)
-            )
+            result = await tool.ainvoke(BrowsingToolInput(query="Find something", max_iterations=3))
 
         assert result.success is False
         assert "Max iterations" in result.result
@@ -346,14 +336,10 @@ class TestAgentLoop:
 
         tool = BrowsingTool(llm_client=mock_llm_client)
 
-        with patch(
-            "agents.tools.llm_tools.browsing.async_playwright"
-        ) as mock_playwright:
+        with patch("agents.tools.llm_tools.browsing.async_playwright") as mock_playwright:
             mock_pw_instance = MagicMock()
             mock_pw_instance.chromium.launch = AsyncMock(return_value=mock_browser)
-            mock_playwright.return_value.__aenter__ = AsyncMock(
-                return_value=mock_pw_instance
-            )
+            mock_playwright.return_value.__aenter__ = AsyncMock(return_value=mock_pw_instance)
             mock_playwright.return_value.__aexit__ = AsyncMock()
 
             result = await tool.ainvoke(
@@ -378,14 +364,10 @@ class TestAgentLoop:
 
         tool = BrowsingTool(llm_client=mock_llm_client)
 
-        with patch(
-            "agents.tools.llm_tools.browsing.async_playwright"
-        ) as mock_playwright:
+        with patch("agents.tools.llm_tools.browsing.async_playwright") as mock_playwright:
             mock_pw_instance = MagicMock()
             mock_pw_instance.chromium.launch = AsyncMock(return_value=mock_browser)
-            mock_playwright.return_value.__aenter__ = AsyncMock(
-                return_value=mock_pw_instance
-            )
+            mock_playwright.return_value.__aenter__ = AsyncMock(return_value=mock_pw_instance)
             mock_playwright.return_value.__aexit__ = AsyncMock()
 
             result = await tool.ainvoke(
@@ -396,9 +378,7 @@ class TestAgentLoop:
                 )
             )
 
-        mock_page.goto.assert_called_with(
-            "https://start.com", wait_until="domcontentloaded"
-        )
+        mock_page.goto.assert_called_with("https://start.com", wait_until="domcontentloaded")
         assert "https://start.com" in result.pages_visited
 
     @pytest.mark.asyncio
@@ -414,19 +394,13 @@ class TestAgentLoop:
 
         tool = BrowsingTool(llm_client=mock_llm_client)
 
-        with patch(
-            "agents.tools.llm_tools.browsing.async_playwright"
-        ) as mock_playwright:
+        with patch("agents.tools.llm_tools.browsing.async_playwright") as mock_playwright:
             mock_pw_instance = MagicMock()
             mock_pw_instance.chromium.launch = AsyncMock(return_value=mock_browser)
-            mock_playwright.return_value.__aenter__ = AsyncMock(
-                return_value=mock_pw_instance
-            )
+            mock_playwright.return_value.__aenter__ = AsyncMock(return_value=mock_pw_instance)
             mock_playwright.return_value.__aexit__ = AsyncMock()
 
-            result = await tool.ainvoke(
-                BrowsingToolInput(query="Do something", max_iterations=5)
-            )
+            result = await tool.ainvoke(BrowsingToolInput(query="Do something", max_iterations=5))
 
         assert result.success is False
         assert "stopped without calling finish" in result.result
@@ -458,14 +432,10 @@ class TestAgentLoop:
 
         tool = BrowsingTool(llm_client=mock_llm_client)
 
-        with patch(
-            "agents.tools.llm_tools.browsing.async_playwright"
-        ) as mock_playwright:
+        with patch("agents.tools.llm_tools.browsing.async_playwright") as mock_playwright:
             mock_pw_instance = MagicMock()
             mock_pw_instance.chromium.launch = AsyncMock(return_value=mock_browser)
-            mock_playwright.return_value.__aenter__ = AsyncMock(
-                return_value=mock_pw_instance
-            )
+            mock_playwright.return_value.__aenter__ = AsyncMock(return_value=mock_pw_instance)
             mock_playwright.return_value.__aexit__ = AsyncMock()
 
             result = await tool.ainvoke(

@@ -101,9 +101,7 @@ class TestContextInitialization:
 
         # Modify through returned references
         history.append(
-            LevelExecution(
-                depth=1, objective="test", iterations_used=1, success=True, result="ok"
-            )
+            LevelExecution(depth=1, objective="test", iterations_used=1, success=True, result="ok")
         )
         stats.update_from_level(depth=1, iterations=1)
 
@@ -215,9 +213,7 @@ class TestContextIsolation:
         history1, stats1 = initialize_recursion_context(max_depth=5)
 
         record_level_execution(
-            LevelExecution(
-                depth=1, objective="First", iterations_used=1, success=True, result="1"
-            )
+            LevelExecution(depth=1, objective="First", iterations_used=1, success=True, result="1")
         )
 
         assert len(history1) == 1

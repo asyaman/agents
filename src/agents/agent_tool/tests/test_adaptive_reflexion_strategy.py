@@ -35,9 +35,7 @@ class TestAdaptiveReflexionStrategy:
         strategy = AdaptiveReflexionStrategy(llm_client=mock_llm_client)
 
         mock_llm_client.agenerate.return_value = ToolCallResponse(
-            tool_calls=[
-                ToolCall(id="1", tool_name="search", arguments={"query": "test"})
-            ]
+            tool_calls=[ToolCall(id="1", tool_name="search", arguments={"query": "test"})]
         )
 
         result = await strategy.plan(

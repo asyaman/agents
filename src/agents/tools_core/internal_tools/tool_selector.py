@@ -122,9 +122,7 @@ class ToolSelector(LLMTool[ToolSelectorInput, ToolSelectorOutput]):
         self.parallel_mode = parallel_mode
         self.include_input_schema = include_input_schema
 
-    def format_messages(
-        self, input: ToolSelectorInput
-    ) -> list[ChatCompletionMessageParam]:
+    def format_messages(self, input: ToolSelectorInput) -> list[ChatCompletionMessageParam]:
         """Format the prompt for tool selection."""
         prompt = _templates.tool_selector(
             objective=input.objective,
@@ -152,14 +150,9 @@ class ToolSelector(LLMTool[ToolSelectorInput, ToolSelectorOutput]):
         """Split tools into batches."""
         if len(tools) <= self.batch_size:
             return [list(tools)]
-        return [
-            list(tools[i : i + self.batch_size])
-            for i in range(0, len(tools), self.batch_size)
-        ]
+        return [list(tools[i : i + self.batch_size]) for i in range(0, len(tools), self.batch_size)]
 
-    def _merge_results(
-        self, results: t.Sequence[ToolSelectorOutput]
-    ) -> ToolSelectorOutput:
+    def _merge_results(self, results: t.Sequence[ToolSelectorOutput]) -> ToolSelectorOutput:
         """Merge multiple batch results into a single output."""
         all_selected: list[SelectedTool] = []
         all_reasoning: list[str] = []
@@ -202,8 +195,7 @@ class ToolSelector(LLMTool[ToolSelectorInput, ToolSelectorOutput]):
 
         # Process batches sequentially (sync doesn't support parallel)
         results = [
-            self.invoke(ToolSelectorInput(objective=objective, tools=batch))
-            for batch in batches
+            self.invoke(ToolSelectorInput(objective=objective, tools=batch)) for batch in batches
         ]
         return self._merge_results(results)
 
@@ -222,9 +214,7 @@ class ToolSelector(LLMTool[ToolSelectorInput, ToolSelectorOutput]):
         batches = self._batch_tools(tool_infos)
 
         if len(batches) == 1:
-            return await self.ainvoke(
-                ToolSelectorInput(objective=objective, tools=batches[0])
-            )
+            return await self.ainvoke(ToolSelectorInput(objective=objective, tools=batches[0]))
 
         if self.parallel_mode:
             # Process batches in parallel

@@ -47,9 +47,7 @@ class RecursionStatistics:
     total_tool_calls: int = 0
     levels_completed: int = 0
 
-    def update_from_level(
-        self, depth: int, iterations: int, tool_calls: int = 0
-    ) -> None:
+    def update_from_level(self, depth: int, iterations: int, tool_calls: int = 0) -> None:
         """Update statistics from a completed level execution."""
         self.max_depth_reached = max(self.max_depth_reached, depth)
         self.total_iterations += iterations
@@ -68,9 +66,7 @@ var_replan_iteration: ContextVar[int] = ContextVar("replan_iteration", default=0
 
 # Global execution history - collects LevelExecution from all levels
 # Must be initialized before use (no default to prevent accidental sharing)
-var_execution_history: ContextVar[list[LevelExecution]] = ContextVar(
-    "execution_history"
-)
+var_execution_history: ContextVar[list[LevelExecution]] = ContextVar("execution_history")
 
 # Global statistics - aggregates metrics across all levels
 # Must be initialized before use

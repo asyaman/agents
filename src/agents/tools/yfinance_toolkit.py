@@ -299,9 +299,7 @@ class ShareCountTool(BaseTool[ShareCountInput, StringOutput]):
         data = stock.get_shares_full(start=input.start, end=input.end).to_dict()  # type: ignore
         return StringOutput(data=dict_to_string(data))  # type: ignore
 
-    example_inputs = (
-        ShareCountInput(ticker="AAPL", start="2022-01-01", end="2022-12-31"),
-    )
+    example_inputs = (ShareCountInput(ticker="AAPL", start="2022-01-01", end="2022-12-31"),)
     example_outputs = (StringOutput(data="2022-01-01: 1000000000"),)
 
 

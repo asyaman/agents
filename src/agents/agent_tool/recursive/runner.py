@@ -135,9 +135,7 @@ class RecursiveAgentRunner:
         )
 
         # Initialize context variables
-        execution_history, statistics = initialize_recursion_context(
-            max_depth=self.max_depth
-        )
+        execution_history, statistics = initialize_recursion_context(max_depth=self.max_depth)
 
         # Build root tools and get guidance if sub-agent is included
         root_tools, guidance_messages = await self._build_root_tools(objective)
@@ -167,9 +165,7 @@ class RecursiveAgentRunner:
 
         # Count tool calls at root level
         tool_calls_count = sum(
-            1
-            for msg in result.messages
-            if msg.get("role") == "assistant" and msg.get("tool_calls")
+            1 for msg in result.messages if msg.get("role") == "assistant" and msg.get("tool_calls")
         )
 
         # Record root level execution at the beginning

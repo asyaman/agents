@@ -41,9 +41,7 @@ class ProviderConfig:
     base_url: str
     default_model: str
     supports_json_schema: bool = True  # Does API support response_format json_schema?
-    supports_strict_mode: bool = (
-        False  # Does API enforce schema via constrained decoding?
-    )
+    supports_strict_mode: bool = False  # Does API enforce schema via constrained decoding?
     supports_tool_calling: bool = True  # Does API support tools/function calling?
     supports_parallel_tool_calls: bool = True  # Does API support parallel_tool_calls?
 

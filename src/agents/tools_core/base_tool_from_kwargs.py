@@ -44,9 +44,7 @@ def _build_model_from_signature(
             continue
 
         # Get type annotation or default to Any
-        annotation = (
-            param.annotation if param.annotation != inspect.Parameter.empty else t.Any
-        )
+        annotation = param.annotation if param.annotation != inspect.Parameter.empty else t.Any
 
         # Handle default values
         if param.default != inspect.Parameter.empty:
@@ -256,13 +254,9 @@ class BaseTool(ABC):
         # Generate from invoke signature
         invoke_method = cls.invoke
         if invoke_method is BaseTool.invoke:
-            raise ValueError(
-                f"{cls.__name__} must override invoke() or define _input model"
-            )
+            raise ValueError(f"{cls.__name__} must override invoke() or define _input model")
 
-        model = _build_model_from_signature(
-            invoke_method, schema_name=f"{cls.__name__}Input"
-        )
+        model = _build_model_from_signature(invoke_method, schema_name=f"{cls.__name__}Input")
         cls._cached_input_model = model
         return model
 
@@ -285,13 +279,9 @@ class BaseTool(ABC):
         # Generate from invoke return type
         invoke_method = cls.invoke
         if invoke_method is BaseTool.invoke:
-            raise ValueError(
-                f"{cls.__name__} must override invoke() or define _output model"
-            )
+            raise ValueError(f"{cls.__name__} must override invoke() or define _output model")
 
-        model = _build_output_model_from_return(
-            invoke_method, schema_name=f"{cls.__name__}Output"
-        )
+        model = _build_output_model_from_return(invoke_method, schema_name=f"{cls.__name__}Output")
         cls._cached_output_model = model
         return model
 

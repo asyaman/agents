@@ -40,9 +40,7 @@ class TavilySearch(BaseTool[TavilyInput, TavilyOutput]):
     _input = TavilyInput
     _output = TavilyOutput
 
-    def __init__(
-        self, max_results: int = 1, client: TavilyClient | None = None
-    ) -> None:
+    def __init__(self, max_results: int = 1, client: TavilyClient | None = None) -> None:
         self.max_results = max_results
         self.client = client or default_tavily_client()
         super().__init__()

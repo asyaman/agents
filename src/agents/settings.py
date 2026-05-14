@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import typing as t
@@ -78,9 +77,7 @@ def configure_settings(**kwargs: t.Any) -> None:
         **kwargs: Optional setting overrides (e.g., openai_api_key="sk-...")
     """
     global _settings
-    _settings = Settings(
-        **kwargs
-    )  # pyright: ignore[reportCallIssue, reportArgumentType]
+    _settings = Settings(**kwargs)  # pyright: ignore[reportCallIssue, reportArgumentType]
 
 
 def get_api_key(provider: Provider) -> str:

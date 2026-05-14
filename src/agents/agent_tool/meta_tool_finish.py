@@ -34,9 +34,7 @@ class FinishInput(BaseModel):
     """Input for the finish tool."""
 
     result: str = Field(description="The final result/answer for the objective.")
-    success: bool = Field(
-        default=True, description="Whether the task was successful."
-    )
+    success: bool = Field(default=True, description="Whether the task was successful.")
 
 
 class FinishOutput(BaseModel):

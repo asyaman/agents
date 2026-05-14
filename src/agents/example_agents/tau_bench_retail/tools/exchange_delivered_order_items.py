@@ -35,7 +35,7 @@ class ExchangeDeliveredOrderItems(Tool):
             return "Error: the number of items to be exchanged should match"
 
         diff_price = 0
-        for item_id, new_item_id in zip(item_ids, new_item_ids):
+        for item_id, new_item_id in zip(item_ids, new_item_ids, strict=False):
             item = [item for item in order["items"] if item["item_id"] == item_id][0]
             product_id = item["product_id"]
             if not (
@@ -55,13 +55,8 @@ class ExchangeDeliveredOrderItems(Tool):
             return "Error: payment method not found"
 
         payment_method = users[order["user_id"]]["payment_methods"][payment_method_id]
-        if (
-            payment_method["source"] == "gift_card"
-            and payment_method["balance"] < diff_price
-        ):
-            return (
-                "Error: insufficient gift card balance to pay for the price difference"
-            )
+        if payment_method["source"] == "gift_card" and payment_method["balance"] < diff_price:
+            return "Error: insufficient gift card balance to pay for the price difference"
 
         # modify the order
         order["status"] = "exchange requested"

@@ -122,9 +122,7 @@ class DirectStrategy(PlanningStrategy):
             plan_messages.append(
                 {
                     "role": "system",
-                    "content": (
-                        "## Current Plan State\n" + plan_state.serialize_for_prompt()
-                    ),
+                    "content": ("## Current Plan State\n" + plan_state.serialize_for_prompt()),
                 }
             )
 
@@ -159,11 +157,7 @@ class DirectStrategy(PlanningStrategy):
                 messages=output_messages,
                 tool_calls=[],
                 success=False,
-                result=(
-                    content
-                    or response.finish_reason
-                    or "No tool calls returned by LLM"
-                ),
+                result=(content or response.finish_reason or "No tool calls returned by LLM"),
             )
 
         # Return tool_calls (possibly including `finish`) for AgentTool to

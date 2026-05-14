@@ -76,10 +76,7 @@ class TestCreateFinishTool:
     def test_finish_tool_attributes(self):
         finish = create_finish_tool()
         assert finish.name == "FINISH"  # normalized to uppercase
-        assert (
-            "finish" in finish.description.lower()
-            or "complete" in finish.description.lower()
-        )
+        assert "finish" in finish.description.lower() or "complete" in finish.description.lower()
 
     def test_finish_tool_invoke(self):
         finish = create_finish_tool()
@@ -90,9 +87,7 @@ class TestCreateFinishTool:
 class TestAgentTool:
     """Tests for AgentTool."""
 
-    def test_init_with_strategy(
-        self, mock_llm_client: MagicMock, search_tool: SearchTool
-    ):
+    def test_init_with_strategy(self, mock_llm_client: MagicMock, search_tool: SearchTool):
         strategy = DirectStrategy(llm_client=mock_llm_client)
         agent = AgentTool(
             tools=[search_tool],
@@ -102,9 +97,7 @@ class TestAgentTool:
         # Should have search_tool + auto-added finish tool
         assert len(agent.tools) == 2
 
-    def test_finish_tool_always_included(
-        self, mock_llm_client: MagicMock, search_tool: SearchTool
-    ):
+    def test_finish_tool_always_included(self, mock_llm_client: MagicMock, search_tool: SearchTool):
         """The finish meta tool is always added — it's the universal
         termination signal. No opt-out flag exists."""
         agent = AgentTool(
@@ -123,18 +116,16 @@ class TestAgentTool:
         agent = AgentTool(
             tools=[search_tool],
             strategy=DirectStrategy(llm_client=mock_llm_client),
-            include_planstate_update_tool=False,
+            enable_plan_state=False,
         )
         # search_tool + finish (no planstate_update in static list either —
         # planstate_update is added per-run in ainvoke when enabled).
         assert len(agent.tools) == 2
         assert any(t.name.upper() == "FINISH" for t in agent.tools)
-        assert agent._include_planstate_update_tool is False
+        assert agent._enable_plan_state is False
 
     @pytest.mark.asyncio
-    async def test_finish_detection_runs_in_agent_tool_not_strategy(
-        self, search_tool: SearchTool
-    ):
+    async def test_finish_detection_runs_in_agent_tool_not_strategy(self, search_tool: SearchTool):
         """Strategy passes finish through in tool_calls; AgentTool detects it
         and terminates with args from finish.arguments."""
         from agents.agent_tool.agent_tool import FinishInput
@@ -169,9 +160,7 @@ class TestAgentTool:
         self, mock_llm_client: MagicMock, search_tool: SearchTool
     ):
         """Test that agent finishes when strategy returns finished=True."""
-        strategy = MockStrategy(
-            outputs=[StrategyOutput(tool_calls=[], result="Immediate result")]
-        )
+        strategy = MockStrategy(outputs=[StrategyOutput(tool_calls=[], result="Immediate result")])
 
         agent = AgentTool(
             tools=[search_tool],
@@ -267,9 +256,7 @@ class TestAgentTool:
             strategy=strategy,
         )
 
-        result = await agent.ainvoke(
-            AgentToolInput(objective="Infinite task", max_iterations=3)
-        )
+        result = await agent.ainvoke(AgentToolInput(objective="Infinite task", max_iterations=3))
 
         assert not result.success
         assert result.iterations_used == 3
@@ -375,9 +362,7 @@ class TestAgentToolGuidanceMessages:
     """Tests for AgentTool guidance_messages functionality."""
 
     @pytest.mark.asyncio
-    async def test_guidance_messages_injected_into_conversation(
-        self, search_tool: SearchTool
-    ):
+    async def test_guidance_messages_injected_into_conversation(self, search_tool: SearchTool):
         """Test that guidance messages are injected as system messages."""
         strategy = MockStrategy(outputs=[StrategyOutput(tool_calls=[], result="Done")])
 
@@ -394,10 +379,7 @@ class TestAgentToolGuidanceMessages:
         # Should have at least 2 system messages (main + guidance)
         assert len(system_msgs) >= 2
         # Guidance should be in one of them
-        assert any(
-            "This is guidance about tools." in msg.get("content", "")
-            for msg in system_msgs
-        )
+        assert any("This is guidance about tools." in msg.get("content", "") for msg in system_msgs)
 
     @pytest.mark.asyncio
     async def test_multiple_guidance_messages(self, search_tool: SearchTool):
@@ -419,9 +401,7 @@ class TestAgentToolGuidanceMessages:
         assert any("Second guidance." in c for c in contents)
 
     @pytest.mark.asyncio
-    async def test_guidance_messages_appear_before_user_message(
-        self, search_tool: SearchTool
-    ):
+    async def test_guidance_messages_appear_before_user_message(self, search_tool: SearchTool):
         """Test that guidance messages appear before the user task message."""
         strategy = MockStrategy(outputs=[StrategyOutput(tool_calls=[], result="Done")])
 

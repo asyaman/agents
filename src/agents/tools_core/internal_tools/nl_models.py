@@ -13,9 +13,7 @@ from pydantic import BaseModel, Field
 class NLInput(BaseModel):
     """Input for LLM-wrapped tools that take natural language tasks."""
 
-    task: str = Field(
-        description="The objective to accomplish by calling the provided tool."
-    )
+    task: str = Field(description="The objective to accomplish by calling the provided tool.")
     context: str | None = Field(default=None, description="Context to solve the task.")
 
 
@@ -40,6 +38,4 @@ class NLOutput(BaseModel):
         default=None,
         description="Result of running the tool, expressed in natural language (if success=True).",
     )
-    error: LLMError | None = Field(
-        default=None, description="Error details (if success=False)"
-    )
+    error: LLMError | None = Field(default=None, description="Error details (if success=False)")

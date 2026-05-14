@@ -20,9 +20,7 @@ from agents.llm_core.llm_client import ToolCall
 
 
 def _tc(tool_name, arguments, parsed, call_id):
-    return ToolCall(
-        tool_name=tool_name, arguments=arguments, parsed=parsed, id=call_id
-    )
+    return ToolCall(tool_name=tool_name, arguments=arguments, parsed=parsed, id=call_id)
 
 
 @pytest.mark.asyncio
@@ -34,14 +32,13 @@ async def test_two_agent_invocations_get_independent_plan_states():
             self.marker = marker
             self.calls = 0
 
-        async def plan(
-            self, messages, tools, parallel_tool_calls=True, plan_state=None
-        ):
+        async def plan(self, messages, tools, parallel_tool_calls=True, plan_state=None):
             self.calls += 1
             if self.calls == 1:
                 tasks = [
                     TaskState(
-                        id=1, objective=f"task for {self.marker}",
+                        id=1,
+                        objective=f"task for {self.marker}",
                         status="pending",
                     )
                 ]
@@ -56,9 +53,7 @@ async def test_two_agent_invocations_get_independent_plan_states():
                         )
                     ]
                 )
-            return StrategyOutput(
-                finished=True, success=True, result=f"done {self.marker}"
-            )
+            return StrategyOutput(finished=True, success=True, result=f"done {self.marker}")
 
     agent_a = AgentTool(tools=[], strategy=WriteOnceStrategy("A"))
     agent_b = AgentTool(tools=[], strategy=WriteOnceStrategy("B"))
@@ -89,14 +84,13 @@ async def test_subagent_child_has_isolated_plan_state():
         def __init__(self):
             self.calls = 0
 
-        async def plan(
-            self, messages, tools, parallel_tool_calls=True, plan_state=None
-        ):
+        async def plan(self, messages, tools, parallel_tool_calls=True, plan_state=None):
             self.calls += 1
             if self.calls == 1:
                 tasks = [
                     TaskState(
-                        id=1, objective=parent_marker_objective,
+                        id=1,
+                        objective=parent_marker_objective,
                         status="in_progress",
                     )
                 ]
@@ -122,24 +116,21 @@ async def test_subagent_child_has_isolated_plan_state():
                         )
                     ]
                 )
-            return StrategyOutput(
-                finished=True, success=True, result="parent done"
-            )
+            return StrategyOutput(finished=True, success=True, result="parent done")
 
     class ChildStrategy(PlanningStrategy):
         def __init__(self):
             self.calls = 0
             self.observed_plan_states: list = []
 
-        async def plan(
-            self, messages, tools, parallel_tool_calls=True, plan_state=None
-        ):
+        async def plan(self, messages, tools, parallel_tool_calls=True, plan_state=None):
             self.observed_plan_states.append(plan_state)
             self.calls += 1
             if self.calls == 1:
                 tasks = [
                     TaskState(
-                        id=1, objective=child_marker_objective,
+                        id=1,
+                        objective=child_marker_objective,
                         status="in_progress",
                     )
                 ]
@@ -154,9 +145,7 @@ async def test_subagent_child_has_isolated_plan_state():
                         )
                     ]
                 )
-            return StrategyOutput(
-                finished=True, success=True, result="child done"
-            )
+            return StrategyOutput(finished=True, success=True, result="child done")
 
     child_strategy = ChildStrategy()
 
@@ -172,9 +161,7 @@ async def test_subagent_child_has_isolated_plan_state():
         strategy=parent_strategy,
     )
 
-    result = await parent_agent.ainvoke(
-        AgentToolInput(objective="parent goal", max_iterations=10)
-    )
+    result = await parent_agent.ainvoke(AgentToolInput(objective="parent goal", max_iterations=10))
 
     assert result.success
     assert result.plan_state is not None
@@ -207,12 +194,11 @@ async def test_subagent_child_plan_revision_starts_at_zero():
         def __init__(self):
             self.calls = 0
 
-        async def plan(
-            self, messages, tools, parallel_tool_calls=True, plan_state=None
-        ):
+        async def plan(self, messages, tools, parallel_tool_calls=True, plan_state=None):
             self.calls += 1
             if self.calls == 1:
-                tasks = [TaskState(id=1, objective="p1", status="pending")]
+                # Iter 1: initial plan (revision 1).
+                tasks = [TaskState(id=1, objective="p1", status="in_progress")]
                 update_input = PlanStateUpdateInput(tasks=tasks)
                 return StrategyOutput(
                     tool_calls=[
@@ -225,10 +211,21 @@ async def test_subagent_child_plan_revision_starts_at_zero():
                     ]
                 )
             if self.calls == 2:
-                # Revise the plan again — parent revision_count becomes 2
-                tasks = [
-                    TaskState(id=1, objective="p1", status="completed")
-                ]
+                # Iter 2: dispatch action between the two revisions
+                # so iter 3's planstate_update is not back-to-back.
+                return StrategyOutput(
+                    tool_calls=[
+                        _tc(
+                            "delegate_subtask",
+                            {"sub_objective": "child"},
+                            SubAgentInput(sub_objective="child"),
+                            "d1",
+                        )
+                    ]
+                )
+            if self.calls == 3:
+                # Iter 3: Reconcile-and-plan — second revision (count==2).
+                tasks = [TaskState(id=1, objective="p1", status="completed")]
                 update_input = PlanStateUpdateInput(tasks=tasks)
                 return StrategyOutput(
                     tool_calls=[
@@ -240,30 +237,13 @@ async def test_subagent_child_plan_revision_starts_at_zero():
                         )
                     ]
                 )
-            if self.calls == 3:
-                return StrategyOutput(
-                    tool_calls=[
-                        _tc(
-                            "delegate_subtask",
-                            {"sub_objective": "child"},
-                            SubAgentInput(sub_objective="child"),
-                            "d1",
-                        )
-                    ]
-                )
-            return StrategyOutput(
-                finished=True, success=True, result="parent done"
-            )
+            return StrategyOutput(finished=True, success=True, result="parent done")
 
     class ChildStrategy(PlanningStrategy):
-        async def plan(
-            self, messages, tools, parallel_tool_calls=True, plan_state=None
-        ):
+        async def plan(self, messages, tools, parallel_tool_calls=True, plan_state=None):
             if plan_state is not None:
                 captured_initial_revisions.append(plan_state.revision_count)
-            return StrategyOutput(
-                finished=True, success=True, result="child done"
-            )
+            return StrategyOutput(finished=True, success=True, result="child done")
 
     sub_agent = SubAgentTool(
         available_tools=[],
@@ -276,9 +256,7 @@ async def test_subagent_child_plan_revision_starts_at_zero():
         strategy=ParentStrategy(),
     )
 
-    result = await parent_agent.ainvoke(
-        AgentToolInput(objective="parent goal", max_iterations=10)
-    )
+    result = await parent_agent.ainvoke(AgentToolInput(objective="parent goal", max_iterations=10))
     assert result.success
     # Parent did planstate_update twice ⇒ parent revision_count == 2
     assert result.plan_state.revision_count == 2
@@ -296,9 +274,7 @@ async def test_subagent_with_plan_status_termination():
         def __init__(self):
             self.calls = 0
 
-        async def plan(
-            self, messages, tools, parallel_tool_calls=True, plan_state=None
-        ):
+        async def plan(self, messages, tools, parallel_tool_calls=True, plan_state=None):
             self.calls += 1
             if self.calls == 1:
                 return StrategyOutput(
@@ -311,25 +287,17 @@ async def test_subagent_with_plan_status_termination():
                         )
                     ]
                 )
-            return StrategyOutput(
-                finished=True, success=True, result="parent done"
-            )
+            return StrategyOutput(finished=True, success=True, result="parent done")
 
     class ChildStrategy(PlanningStrategy):
         def __init__(self):
             self.calls = 0
 
-        async def plan(
-            self, messages, tools, parallel_tool_calls=True, plan_state=None
-        ):
+        async def plan(self, messages, tools, parallel_tool_calls=True, plan_state=None):
             self.calls += 1
             # Child terminates on first call by setting plan_status=completed
-            tasks = [
-                TaskState(id=1, objective="t", status="completed")
-            ]
-            update_input = PlanStateUpdateInput(
-                tasks=tasks, plan_status="completed"
-            )
+            tasks = [TaskState(id=1, objective="t", status="completed")]
+            update_input = PlanStateUpdateInput(tasks=tasks, plan_status="completed")
             return StrategyOutput(
                 tool_calls=[
                     _tc(
@@ -352,9 +320,7 @@ async def test_subagent_with_plan_status_termination():
         strategy=ParentStrategy(),
     )
 
-    result = await parent_agent.ainvoke(
-        AgentToolInput(objective="parent goal", max_iterations=10)
-    )
+    result = await parent_agent.ainvoke(AgentToolInput(objective="parent goal", max_iterations=10))
 
     assert result.success
     # Parent's plan was never updated — it started in draft and stayed there
